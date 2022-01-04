@@ -1,0 +1,247 @@
+---
+title: "Report 3"
+author: "Klaudia Balcer"
+date: "12/3/2021"
+output: 
+  pdf_document:
+    extra_dependencies: ["bbm", "caption", "tabularx", "booktabs", "graphicx"]
+---
+
+\tableofcontents
+
+\pagebreak
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(gridExtra)
+library(tidyr)
+library(dplyr)
+library(latex2exp)
+library(knitr)
+library(goftest)
+# library(memisc)
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(include = TRUE)
+set.seed(2021)
+```
+
+```{r functions}
+# empirical_CDF <- function(t, vec) {
+#   return(mean(vec <= t))
+# }
+
+# HC_function <- function(t, p_vec) {
+#   n <- length(p_vec)
+#   CDF <- ecdf(p_vec)
+#   sqrt(n) * (CDF(t) - t) / sqrt(t * (1 - t))
+# }
+
+HC_test_stat <- function(p_vec) {
+  n <- length(p_vec)
+  CDF <- ecdf(p_vec)
+  ts <- seq(1 / length(p_vec) + 0.0001, 1 / 2 - 0.0001, length=10000)
+  max(sqrt(n) * (CDF(ts) - ts) / sqrt(ts * (1 - ts)))
+}
+
+# mHC_function <- function(t, p_vec) {
+#   n <- length(p_vec)
+#   q <- log(log(1 / (t * (1 - t))))
+#   CDF <- ecdf(p_vec)
+#   sqrt(n) * (CDF(t) - t) / sqrt(t * (1 - t) * q)
+# }
+
+mHC_test_stat <- function(p_vec) {
+  n <- length(p_vec)
+  CDF <- ecdf(p_vec)
+  ts <- seq(0.0001, 1-0.0001, length=10000)
+  max(sqrt(n) * (CDF(ts) - ts) / sqrt(ts * (1 - ts) * log(log(1 / (ts * (1 - ts))))))
+}
+```
+
+In this report we will study the properties of High Criticism test and compare global null tests discussed in the lectures.
+
+# Task 1
+
+First, we will study the properties of High Criticism test under global null hypothesis. For different vectors leghts, we will calculte the probabilities of Type I Error. 
+
+```{r simulation1, results='asis'}
+ns <- c(5000, 50000)
+for (n in ns) {
+  cat("$\\mathbb{P}$ (Type I Error | n = ", n,") =", mean(replicate(1000, mHC_test_stat(runif(n)) >= 4.14), na.rm=T), "\n\n")
+}
+```
+
+As we can see, the size of the test is slighly lower than the significance level $\alpha = 0.05$.
+
+# Task 2
+
+In the second task, we will use simulations to get the critical values of HC test and modified HC test.
+
+```{r simulation2, results='asis'}
+n <- 5000
+alpha <- .05
+
+res2 <- replicate(10000, {x <- runif(n); c(HC_test_stat(x), mHC_test_stat(x))})
+critical_HC <- quantile(res2[1, ], .95, na.rm = T)
+critical_mHC <- quantile(res2[2, ], .95, na.rm = T)
+
+cat("Estimated critical value for High Criticism Test Statistics:", round(critical_HC, 3), "\n\n")
+cat("Estimated critical value for Modyfied High Criticism Test Statistics:", round(critical_mHC, 3), "\n\n")
+```
+
+The critical value for $HC_{mod}$ is roughly equal to the value $C=4.14$ provided in the previous task. 
+
+# Task 3
+
+In this task, we will compare the power for one-sided globall null tests. We will run simulations for 3 alternatives for $n=5000$:
+
+1. $mu_1$: one needle of length $1.2\sqrt{2log(n)}$ (Needle in the Haystack),
+
+2. $mu_2$: 100 needles of length $1.02\sqrt{2log(\frac {n} {200} )}$ (some medium strong signals)
+
+3. $mu_2$: 1000 needles of length $1.002\sqrt{2log(\frac {n} {2000} )}$ (small distributed signals).
+
+```{r test_definitions}
+HC_test <- function(p_vec) {
+  as.numeric(HC_test_stat(p_vec) > critical_HC)
+}
+
+mHC_test <- function(p_vec) {
+  as.numeric(mHC_test_stat(p_vec) > critical_mHC)
+}
+
+Bonferroni_test <- function(p_vec) {
+  as.numeric(min(p_vec) < 0.05 / length(p_vec))
+}
+
+Chi2_test <- function(X) {
+  as.numeric(sum(X ^ 2) > qchisq(0.95, length(X)))
+}
+
+Fisher_test <- function(p_vec) {
+  as.numeric(-2 * sum(log(p_vec)) > qchisq(0.95, 2 * length(p_vec)))
+}
+
+KS_test <- function(p_vec) {
+  as.numeric(ks.test(p_vec, runif, alternative = "greater")$p.value < 0.05)
+}
+
+AD_test <- function(p_vec) {
+  as.numeric(ad.test(p_vec)$p.value < 0.05)
+}
+```
+
+```{r simulation3}
+n <- 5000
+
+mu1 <- c(1.2 * sqrt(2 * log(n)), rep(0, n - 1))
+mu2 <- c(rep(1.02 * sqrt(2 * log(n / 200)), 100), rep(0, n - 100))
+mu3 <- c(rep(1.002 * sqrt(2 * log(n / 2000)), 1000), rep(0, n - 1000))
+
+run_all_tests <- function(X) {
+  p_vec <- 1 - pnorm(X)
+  return(c(HC_test(p_vec), 
+           mHC_test(p_vec),
+           Bonferroni_test(p_vec), 
+           Chi2_test(X),
+           Fisher_test(p_vec), 
+           KS_test(p_vec),
+           AD_test(p_vec)))
+}
+
+results3 <- matrix(nrow=7, ncol=3)
+i <- 1
+for (mu in list(mu1, mu2, mu3)) {
+  X <- replicate(1000, rnorm(length(mu), mu))
+  res3 <- sapply(1:dim(X)[2], function (j) run_all_tests(X[, j]))
+  results3[1:7, i] <- rowMeans(res3)
+  i <- i+1
+}
+
+method_names <- c("HC_test", 
+             "mHC_test",
+             "Bonferroni", 
+             "Chi2",
+             "Fisher", 
+             "KS", 
+             "AD")
+rownames(results3) <- method_names
+colnames(results3) <- c("mu_1", "mu_2", "mu_3")
+kable(results3)
+```
+
+# Task 4
+
+In the fourth task, we will consider the sparse mixture model. The goal of the task is to compare the powers of several tests for different alternatives with the maximum power (power of Neyman-Person test). 
+
+
+```{r simulation4, results='asis'}
+betas <- c(0.6, 0.8)
+rs <- c(0.1, 0.4)
+ns <- c(5000, 50000)
+
+likelihood_sparse_mixture <- function(X, eps, mu) {
+  sum(log((1 - eps) + eps * exp(mu * X - mu^2/2)))
+}
+
+run_all_tests_4 <- function(eps, mu, C) {
+  X <- c(rnorm(eps * n, mu), rnorm((1 - eps) * n))
+  p_vec <- 1 - pnorm(X)
+  return(c(likelihood_sparse_mixture(X, eps, mu) >= C,
+           HC_test(p_vec), 
+           mHC_test(p_vec),
+           Bonferroni_test(p_vec), 
+           Chi2_test(X),
+           Fisher_test(p_vec)))
+}
+results4 <- array(dim=c(length(betas), 
+                        length(rs), 
+                        length(ns), 
+                        6))
+for (index_b in seq(length(betas))) {
+  for (index_r in seq(length(rs))) {
+    for (index_n in seq(length(ns))) {
+      b <- betas[index_b]; r <- rs[index_r]; n <- ns [index_n]
+      eps <- n ^ (-b)
+      mu <- sqrt(2 * r * log(n))
+      
+      Ts <- replicate(1000, likelihood_sparse_mixture(rnorm(n), eps, mu))
+      C <- quantile(Ts, 0.95)
+      cat("\nCritical value of Neyman-Person for n =", n, ", b =", b, ", r = ", r, ": ", round(C, 3), ". \n")
+      res_tmp <- replicate(1000, run_all_tests_4(eps, mu, C))
+      results4[index_b, index_r, index_n, ] <- rowMeans(res_tmp, na.rm=T)
+    }
+  }
+}
+```
+
+```{r ,results='asis'}
+method_names <- c("Neyman_Person",
+             "HC_test", 
+             "mHC_test",
+             "Bonferroni", 
+             "Chi2",
+             "Fisher")
+
+dimnames(results4) <- list(b=betas, r=rs, n=ns, method = method_names)
+results4df <- as.data.frame(ftable(results4))
+results4df$q <- if_else(as.numeric(as.character(results4df$b)) <= 3/4, 
+                        as.numeric(as.character(results4df$b)) - 1/2, 
+                        (1 - sqrt(1 - as.numeric(as.character(results4df$b))))^2)
+df <- spread(results4df, "method", "Freq")
+kable(df, digits = 3)
+```
+
+```{r ,results='asis'}
+df$r_q_ratio <-  as.numeric(as.character(df$r)) / df$q
+df_to_plot <- gather(df[, c(method_names, "r_q_ratio", "n")], test, power, method_names)
+ggplot(df_to_plot) + 
+  geom_line(aes(x = r_q_ratio, y=power, color=test, linetype = n)) + 
+  scale_color_manual(values=6:1) + 
+  geom_vline(xintercept=1, color="grey", linetype=4) + 
+  labs(title="Power functions")
+```
+
+We can observe the powers using the above chart. The detection threshold in the sparse mixture model is $r > \rho^*(\beta)$. For values below the threshold, all the tests are powerless. The bigger $r$ (in respect to $\rho$), the higher power we get. The power also grows when $n$ increases - we can observe the convergence (power $\rightarrow$ 1). 

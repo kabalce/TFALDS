@@ -1,0 +1,109 @@
+---
+title: "Report 4"
+author: "Klaudia Balcer"
+date: "12/17/2021"
+output: 
+  pdf_document:
+    extra_dependencies: ["bbm", "caption", "tabularx", "booktabs", "graphicx"]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(include = TRUE)
+
+set.seed(2021)
+```
+
+# Task 1 
+
+```{r multiple_testing_procedures}
+bonferroni <- function(pvals, alpha=0.05) {
+  n <- length(pvals)
+  pvals <= alpha / n
+}
+
+sidak <- function(pvals, alpha=0.05) {
+  n <- length(pvals)
+  alpha_n <- 1 - (1 - alpha) ^ (1/n)
+  pvals <= alpha_n / n
+}
+
+holm <- function(pvals, alpha=0.05) {
+  n <- length(pvals)
+  ord <- order(pvals)
+  res <- pvals <= (alpha / (n + 1 - seq(n)))[ord]
+  sapply(1:n, function(i) all(res[1:i]))
+}
+
+hochberg <- function(pvals, alpha=0.05) {
+  n <- length(pvals)
+  ord <- order(pvals)
+  res <- pvals <= (alpha / (n + 1 - seq(n)))[ord]
+  (!sapply(n:1, function(i) all(!res[i:n])))[n:1]
+}
+
+benjamini_hochberg <- function(pvals, alpha=0.05) {
+  n <- length(pvals)
+  ord <- order(pvals)
+  res <- pvals <= (alpha * seq(n) / n)[ord]
+  (!sapply(n:1, function(i) all(!res[i:n])))[n:1]
+}
+```
+
+
+```{r simulation1}
+n <- 20
+
+mu1 <- 1.2 * sqrt(2 * log(n))
+n_mu1 <- 1
+
+mu1 <- 1.02 * sqrt(2 * log(n / 10))
+n_mu2 <- 5
+
+mu1 <- sqrt(2 * log(n/20))
+n_mu3 <- 10
+
+mu <- function(m, n_mu, n) {
+  c(rep(mu, n_mu), rep(0, n - n_mu))
+} 
+
+```
+
+# Task 2
+
+```{r simulation2}
+```
+
+# Task 3
+
+
+```{r simulation3}
+n <- 5000
+m <- 1000
+
+simulate_Un <- function(n) {
+  pvals <- runif(n)
+  ts <-  seq(0, 1, length=n)
+  CDF <- ecdf(pvals)
+  U <- sqrt(n) * (CDF(ts) - ts)
+  U
+}
+
+simulate_BB <- function(n) {
+  zs <- rnorm(n)
+  Ws <- cumsum(zs) / sqrt(n)
+  Bs <- Ws - seq(n) / n * Ws[n]
+  Bs
+}
+
+U <- simulate_Un(n)
+Bs <- simulate_BB(n)
+
+plot(seq(n) / n, U, type="l", lty=2, col="red", ylim = c(-1, 1))
+lines(seq(n) / n, Bs, col="blue")
+```
+
+
+# Task 4

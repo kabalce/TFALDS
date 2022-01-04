@@ -2,121 +2,633 @@
 title: "Report 1"
 author: "Klaudia Balcer"
 date: "7 10 2021"
-output: pdf_document
+output: 
+  pdf_document:
+    extra_dependencies: ["bbm"]
+    fig_width: 9
+    fig_height: 9
+params:
+  year: 2021
+  show_code: FALSE # nie ma results
+
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(include = TRUE)
+
 source("zadanie1.R")
+source("zadanie2.R")
 library(ggplot2)
+library(stringr)
 library(gridExtra)
+
+set.seed(1998)
 ```
+
+\tableofcontents
+
+\pagebreak
 
 # Task 1
 
-In this excersize, we are working with the distribution $Beta(\alpha + 1, 1)$. We will focus on estimating the parameter $\alpha$. First we will do some theoretical calculations, than some simulations will be executed. 
+In the first task, we will study the properties of the parameter estimators of a particular form of the beta distribution $Beta(\alpha + 1, 1)$. First, some theoretical calculations will be provided. Then, the estimation will be made on simulated data. 
+The goal of the task is to conclude the differences between the MLE and moment estimators for different sample sizes.
 
-## theoretical calculations
+## Theoretical Calculations
 
 ### MLE
 
+To provide the Maximum Likelihood Estimator (MLE), we need to find the argument maximizing the likelihood function of the random sample vector X. 
+
 **Deriving the MLE**
 
-pdf:  $f(x, \alpha) = (\alpha + 1) x ^{\alpha}$.
+The distribution  $Beta(\alpha + 1, 1)$ has the PDF:  $f(x, \alpha) = (\alpha + 1) x ^{\alpha}$.
 
-random sample: $X = X_{1}, \ldots, X_{n}$
+We have a random sample: $X = X_{1}, \ldots, X_{n}$.
 
-Likelihood function: $L(X,  \alpha) = \prod_{i=1}^{n} f(X_{i}, \alpha) = \prod_{i=1}^{n} (\alpha + 1) x_{i} ^{\alpha}$
+The likelihood function of the random sample vector X is given by the formula: 
 
-Loglikelihood function: $l(X,  \alpha) = log(L(X,  \alpha)) = log(\prod_{i=1}^{n} (\alpha + 1) x_{i} ^{\alpha}) = nlog(\alpha + 1) + \alpha\sum_{i=1}^{n}log(x_{i})$
+$$L(X,  \alpha) = \prod_{i=1}^{n} f(X_{i}, \alpha) = \prod_{i=1}^{n} (\alpha + 1) x_{i} ^{\alpha}$$
 
-We are looking for  the maximum of the likelihood function, equivalently the maximum of the loglikelihood function.
+Finding the argument maximizing the likelihood function is equivalent to finding the argument maximizing the logarithm of the likelihood function (loglikelihood function).
 
-$\frac{\partial l(X, \alpha)}{\partial \alpha} = \frac{n}{\alpha + 1} + \sum_{i=1}^{n}log(x_{i})$
+The loglikelihood function of the random sample vector X is given by the formula: 
 
-$\frac{\partial l(X, \alpha)}{\partial \alpha} = 0$ when $\frac{n}{\alpha + 1} + \sum_{i=1}^{n}log(x_{i}) = 0$
+$$l(X,  \alpha) = log(L(X,  \alpha)) = log(\prod_{i=1}^{n} (\alpha + 1) x_{i} ^{\alpha}) = nlog(\alpha + 1) + \alpha\sum_{i=1}^{n}log(x_{i})$$
+
+To find the max-arg, we need to look at the first and second derivatives of the loglikelihood function. We need to find the zeros from the first derivative and check if the second derivative is negative in those points. 
+
+$$\frac{\partial l(X, \alpha)}{\partial \alpha} = \frac{n}{\alpha + 1} + \sum_{i=1}^{n}log(x_{i})$$
+Let's look for the zeros:
+
+$$\frac{\partial l(X, \alpha)}{\partial \alpha} = 0 \iff  \frac{n}{\alpha + 1} + \sum_{i=1}^{n}log(x_{i}) = 0$$
 
 So, the point considered to be the extremum is $\alpha = -\frac{n}{\sum_{i=1}^{n}log(x_{i})} -1$
 
 Let's look at the second deriver:
 
-$\frac{\partial^{2} l(X, \alpha)}{\partial \alpha ^{2}}  = - \frac{n}{(\alpha + 1) ^{2}}$ 
+$$\frac{\partial^{2} l(X, \alpha)}{\partial \alpha ^{2}}  = - \frac{n}{(\alpha + 1) ^{2}}$$
 
 It's always negative, so we have the MLE:
 
-$\hat{\alpha}_{MLE} = -\frac{n}{\sum_{i=1}^{n}log(x_{i})} -1$
+$$\hat{\alpha}_{MLE} = -\frac{n}{\sum_{i=1}^{n}log(x_{i})} -1$$
 
-**MLE distribution**
 
 **Fisher Information**
 
-We can calculate the Fisher Information from:
+We can calculate the Fisher Information using the formula:
 
-$I(\alpha) = - \mathbb{E}(\frac{\partial^{2} f(x, \alpha)}{\partial \alpha ^{2}})$
+$$I(\alpha) = - \mathbb{E}(\frac{\partial^{2} f(x, \alpha)}{\partial \alpha ^{2}})$$
 
-$\frac{\partial^{2} f(x, \alpha)}{\partial \alpha ^{2}} = - \frac{1}{(\alpha + 1) ^ {2}}$
+For the $Beta(\alpha + 1, 1)$ distribution, the second derivative of the PDF does not depend on X:
 
-The second derivative is contans, so the constant value is the mean:
+$$\frac{\partial^{2} f(x, \alpha)}{\partial \alpha ^{2}} = - \frac{1}{(\alpha + 1) ^ {2}}$$
 
-$I(\alpha) = - \mathbb{E} \frac{\partial^{2} f(x, \alpha)}{\partial \alpha ^{2}} = \frac{1}{(\alpha + 1) ^{2}}$
+So, the Fisher Information is equal:
+
+$$I(\alpha) = - \mathbb{E} \frac{\partial^{2} f(x, \alpha)}{\partial \alpha ^{2}} = \frac{1}{(\alpha + 1) ^{2}}$$
+**MLE distribution**
+
+Using the Theorem 6.2.2. from Hogg, McKean, Craig *Introduction to Mathematical Statstics*, we can find the asymptotical distribution of $\hat{\alpha}_{MLE}$:
+
+$$\sqrt{n}(\hat{\alpha}_n  - \alpha) \xrightarrow{\mathcal{ D }} \mathcal{N}\Big(0, \frac{1}{I(\alpha)}\Big)$$
+
+In our case: 
+
+$$\sqrt{n}(\hat{\alpha}_n  - \alpha) \xrightarrow{\mathcal{ D }} \mathcal{N}(0, 36)$$
+
+**MSE**
+
+$$MSE = \mathbb{E}[\hat{\alpha} - \alpha] ^ 2$$
+as $\hat{\alpha} - \alpha$ is asymptotically normal with mean 0, we can state, that:
+
+$$MSE \approx Var(\mathbb{Z})$$
+
+where $\sqrt{n}Z \sim \mathcal{N}\Big(0, \frac{1}{I(\alpha)}\Big)$, so:
+ 
+$$Z \sim \mathcal{N}\Big(0, \frac{1}{nI(\alpha)}\Big)$$
+ 
+
+$$MSE \approx \frac{1}{nI(\alpha)}$$
+
+In our case: 
+
+$$MSE_{20} = 36/20 = 1.8$$
+$$MSE_{200} = 36/200 = 0.18$$
 
 ### Moment estimator
 
+The idea behind the moment estimator is to provide a formula for the parameter using the moments of the distribution. Then, we need to estimate the moments and substitute the estimators for real moments in that formula. 
 
 **Deriving the moment estimator**
 
+First, let's calculate the first moment of the distribution $Beta(\alpha + 1, 1)$:
 
-$\mathbb{E}X_{1} = \int_0^1(\alpha + 1)x^{\alpha} \cdot x dx = \frac{\alpha + 1}{\alpha + 2} x^{\alpha +  2} |_{x=0}^{x=1} = \frac{\alpha + 1}{\alpha + 2}$
+$$\mathbb{E}X_{1} = \int_0^1(\alpha + 1)x^{\alpha} \cdot x dx = \frac{\alpha + 1}{\alpha + 2} x^{\alpha +  2} |_{x=0}^{x=1} = \frac{\alpha + 1}{\alpha + 2}$$
 
-Let's use $u_1 = \mathbb{E}X_{1}$, than $u_1 = \frac{\alpha + 1}{\alpha + 2}$, what leads us to $\hat{\alpha} =  \frac{1 - 2\hat{u_1}}{\hat{u_1} - 1}$
+Let us denote $u_1 = \mathbb{E}X_{1}$. Than $u_1 = \frac{\alpha + 1}{\alpha + 2}$. This leads us to the formula:
 
-### Diagnosing estimators 
+$$\hat{\alpha} =  \frac{1 - 2\hat{u_1}}{\hat{u_1} - 1}$$
 
-TODO: describe the Fisher Info connection with Var and MSE (Cromer Rao band)
+\pagebreak
 
 ## Simulations
+
+We were estimating the parameter using two sample sizes: $n = 20, 200$. 
+For each sample size, $m = 1000$ random sample vectors were provided. Each vector of observations leads us to estimations. Using $m$ vectors, we can explore the distribution of the estimators.
+
 
 ```{r provide_data}
 sim_1_20 <- simulation_1(5, 20,  1000)
 sim_1_200 <- simulation_1(5, 200,  1000)
 ```
 
-for both estimators:
 
-**Histogram**
+### Histograms
 
-```{r histograms}
-par(mfrow=c(2,2))
+```{r histograms, results="asis"}
 estimators_20 <- as.data.frame.array(t(sim_1_20[,  1, ]))
 colnames(estimators_20) <- c("mle",  "mom")
 estimators_200 <- as.data.frame.array(t(sim_1_200[,  1, ]))
 colnames(estimators_200) <- c("mle",  "mom")
 
-ggplot(estimators_20,  aes(x=mle)) + geom_histogram()
-ggplot(estimators_20,  aes(x=mom)) + geom_histogram()
-ggplot(estimators_200,  aes(x=mle)) + geom_histogram()
-ggplot(estimators_200,  aes(x=mom)) + geom_histogram()
 
-ggarrange(bxp, dp, bp + rremove("x.text"), 
-          labels = c("A", "B", "C"),
-          ncol = 2, nrow = 2)
+p1 <- ggplot(estimators_20,  aes(x=mle)) + 
+  geom_histogram(aes(y=..density..), bins=25)  + 
+  stat_function(fun = dnorm, 
+                args = list(mean = mean(estimators_20[["mle"]]), 
+                            sd = sd(estimators_20[["mle"]])), n=1000, color="green") +
+  xlim(1, 12) + ylim(0, 1) + 
+  labs(title="MLE estimator for n = 20") + xlab("") + ylab("") + 
+  theme(plot.title = element_text(size=12))
+
+p2 <- ggplot(estimators_20,  aes(x=mom)) + 
+  geom_histogram(aes(y=..density..), bins=25)  + 
+  stat_function(fun = dnorm, 
+                args = list(mean = mean(estimators_20[["mom"]]), 
+                            sd = sd(estimators_20[["mom"]])), n=1000, color="green") +
+  xlim(1, 12) + ylim(0, 1) + 
+  labs(title="Moment estimator for n = 20") + xlab("") + ylab("") + 
+  theme(plot.title = element_text(size=12))
+
+p3 <- ggplot(estimators_200,  aes(x=mle)) + 
+  geom_histogram(aes(y=..density..), bins=25)  + 
+  stat_function(fun = dnorm, 
+                args = list(mean = mean(estimators_200[["mle"]]), 
+                            sd = sd(estimators_200[["mle"]])), n=1000, color="green") +
+  xlim(1, 12) + ylim(0, 1) + 
+  labs(title="MLE estimator for n = 200") + xlab("") + ylab("") + 
+  theme(plot.title = element_text(size=12))
+
+p4 <- ggplot(estimators_200,  aes(x=mom)) + 
+  geom_histogram(aes(y=..density..), bins=25)  + 
+  stat_function(fun = dnorm, 
+                args = list(mean = mean(estimators_200[["mom"]]), 
+                            sd = sd(estimators_200[["mom"]])), n=1000, color="green") +
+  xlim(1, 12)  + ylim(0, 1) + 
+  labs(title="Moment estimator for n = 200") + xlab("") + ylab("") + 
+  theme(plot.title = element_text(size=12))
+
+
+grid.arrange(p1, p2, p3, p4, ncol=2, 
+             left="density", bottom="value", top="Estimator histograms")
 ```
 
-**Box plot**
+\pagebreak
 
-**Q-Q plot**
+### Box plots
 
-**Bias**
-+ confidence intervals
-**Variance**
-+ confidence intervals
+```{r boxplots, results="asis"}
+estimators_20 <- as.data.frame.array(t(sim_1_20[,  1, ]))
+colnames(estimators_20) <- c("mle",  "mom")
+estimators_200 <- as.data.frame.array(t(sim_1_200[,  1, ]))
+colnames(estimators_200) <- c("mle",  "mom")
 
-**MSE**
-+ confidence intervals
+p1 <- ggplot(estimators_20,  aes(x=mle)) + geom_boxplot() +
+  xlim(1, 12) + 
+  labs(title="MLE boxplot for n = 20") + xlab("") + ylab("") + 
+  theme(plot.title = element_text(size=12), 
+        axis.text.y = element_blank(), axis.ticks.y = element_blank())
+p2 <- ggplot(estimators_20,  aes(x=mom)) + geom_boxplot() +
+  xlim(1, 12) + 
+  labs(title="Moment estimator boxplot for n = 20") + xlab("") + ylab("") + 
+  theme(plot.title = element_text(size=12), 
+        axis.text.y = element_blank(), axis.ticks.y = element_blank())
+p3 <- ggplot(estimators_200,  aes(x=mle)) + geom_boxplot() +
+  xlim(1, 12) + 
+  labs(title="MLE boxplot for n = 200") + xlab("") + ylab("") + 
+  theme(plot.title = element_text(size=12), 
+        axis.text.y = element_blank(), axis.ticks.y = element_blank())
+p4 <- ggplot(estimators_200,  aes(x=mom)) + geom_boxplot() +
+  xlim(1, 12) + 
+  labs(title="Moment estimator boxplot for n = 200") + xlab("") + ylab("") + 
+  theme(plot.title = element_text(size=12), 
+        axis.text.y = element_blank(), axis.ticks.y = element_blank())
 
-### n = 200
+grid.arrange(p1, p2, p3, p4, ncol=2, 
+             bottom="value", top="Estimator boxplots")
+```
+\pagebreak
+
+### Q-Q plots
+
+```{r qqplots, results="asis"}
+estimators_20 <- as.data.frame.array(t(sim_1_20[,  1, ]))
+colnames(estimators_20) <- c("mle",  "mom")
+estimators_200 <- as.data.frame.array(t(sim_1_200[,  1, ]))
+colnames(estimators_200) <- c("mle",  "mom")
+
+par(mfrow=c(2,2))
+p1 <- ggplot(estimators_20,  aes(sample=mle)) + geom_qq(size=0.1) +
+  stat_qq_line(color="green") + 
+  labs(title="MLE QQ-plot for n = 20") + xlab("") + ylab("") + 
+  theme(plot.title = element_text(size=12))
+p2 <- ggplot(estimators_20,  aes(sample=mom)) + geom_qq(size=0.1) + 
+  stat_qq_line(color="green") +
+  labs(title="Momont estimator QQ-plot for n = 20") + xlab("") + ylab("") + 
+  theme(plot.title = element_text(size=12))
+p3 <- ggplot(estimators_200,  aes(sample=mle)) + geom_qq(size=0.1) + 
+  stat_qq_line(color="green") +
+  labs(title="MLE QQ-plot for n = 200") + xlab("") + ylab("") + 
+  theme(plot.title = element_text(size=12))
+p4 <- ggplot(estimators_200,  aes(sample=mom)) + geom_qq(size=0.1) + 
+  stat_qq_line(color="green") +
+  labs(title="Momont estimator QQ-plot for n = 200") + xlab("") + ylab("") + 
+  theme(plot.title = element_text(size=12))
+
+grid.arrange(p1, p2, p3, p4, ncol=2, 
+             top="Estimator QQplots")
+```
+
+\pagebreak
+
+### Bias
+
+Both estimators are unbiased. We expect the bias to converge to zero. 
+
+```{r bias, results="asis"}
+cat("**For n = 20: **\n\n")
+
+int_b20 <- conf_int_bias(estimators_20[["mle"]], 5, 1000)
+cat(str_c("Estimated value of bias for MLE:   ", round(int_b20[["est"]], 3), "\n\n"))
+cat(str_c("Confidence intervals for MLE: (", 
+          round(int_b20[["conf_int_lower"]], 3),  ", ", 
+          round(int_b20[["conf_int_upper"]], 3), ")\n\n"))
+
+int_b20 <- conf_int_bias(estimators_20[["mom"]], 5, 1000)
+cat(str_c("Estimated value of bias for moment estimator:   ", round(int_b20[["est"]], 3), "\n\n"))
+cat(str_c("Confidence intervals for moment estimator: (", 
+          round(int_b20[["conf_int_lower"]], 3),  ", ", 
+          round(int_b20[["conf_int_upper"]], 3), ")\n\n"))
+
+cat("\n\n**For n = 200: **\n\n")
+
+int_b200 <- conf_int_bias(estimators_200[["mle"]], 5, 1000)
+cat(str_c("Estimated value of bias for MLE:   ", round(int_b200[["est"]], 3), "\n\n"))
+cat(str_c("Confidence intervals for MLE: (", 
+          round(int_b200[["conf_int_lower"]], 3),  ", ", 
+          round(int_b200[["conf_int_upper"]], 3), ")\n\n"))
+
+int_b200 <- conf_int_bias(estimators_200[["mom"]], 5, 1000)
+cat(str_c("Estimated value of bias for moment estimator:   ", round(int_b200[["est"]], 3), "\n\n"))
+cat(str_c("Confidence intervals for moment estimator: (", 
+          round(int_b200[["conf_int_lower"]], 3),  ", ", 
+          round(int_b200[["conf_int_upper"]], 3), ")\n\n"))
+```
+
+### Variance
+
+From the Rao-Cramer Lower Bound, we expect the variance to be grater than the inverse of n times Fisher Information for real estimator value:
+
+$$Var(\hat{\alpha}) \geqslant \frac {1}{n \cdot I(\alpha)} $$
+
+```{r var, results="asis"}
+cat("**For n = 20: **\n\n")
+
+int_v20 <- conf_int_var(estimators_20[["mle"]], 5, 1000)
+cat(str_c("Estimated value of variance for MLE:   ", round(int_v20[["est"]], 3), "\n\n"))
+cat(str_c("Confidence intervals for MLE: (", 
+          round(int_v20[["conf_int_lower"]], 3),  ", ", 
+          round(int_v20[["conf_int_upper"]], 3), ")\n\n"))
+
+int_v20 <- conf_int_var(estimators_20[["mom"]], 5, 1000)
+cat(str_c("Estimated value of variance for moment estimator:   ", round(int_v20[["est"]], 3), "\n\n"))
+cat(str_c("Confidence intervals for moment estimator: (", 
+          round(int_v20[["conf_int_lower"]], 3),  ", ", 
+          round(int_v20[["conf_int_upper"]], 3), ")\n\n"))
+
+cat("\n\n**For n = 200: **\n\n")
+
+int_v200 <- conf_int_var(estimators_200[["mle"]], 5, 1000)
+cat(str_c("Estimated value of variance for MLE:   ", round(int_v200[["est"]], 3), "\n\n"))
+cat(str_c("Confidence intervals for MLE: (", 
+          round(int_v200[["conf_int_lower"]], 3),  ", ", 
+          round(int_v200[["conf_int_upper"]], 3), ")\n\n"))
+
+int_v200 <- conf_int_var(estimators_200[["mom"]], 5, 1000)
+cat(str_c("Estimated value of variance for moment estimator:   ", round(int_v200[["est"]], 3), "\n\n"))
+cat(str_c("Confidence intervals for moment estimator: (", 
+          round(int_v200[["conf_int_lower"]], 3),  ", ", 
+          round(int_v200[["conf_int_upper"]], 3), ")\n\n"))
+```
+
+### MSE
+
+We can estimate the MSE as $\sum_{i=1}^n (\hat{\alpha} - \alpha)^2$ (using the biased estimator of variance).
+
+```{r mse, results="asis"}
+cat("**For n = 20: **\n\n")
+
+int_m20 <- conf_int_mse(estimators_20[["mle"]], 5, 1000)
+cat(str_c("Estimated value of MSE for MLE:   ", round(int_m20[["est"]], 3), "\n\n"))
+cat(str_c("Confidence intervals for MLE: (", 
+          round(int_m20[["conf_int_lower"]], 3),  ", ", 
+          round(int_m20[["conf_int_upper"]], 3), ")\n\n"))
+
+int_m20 <- conf_int_mse(estimators_20[["mom"]], 5, 1000)
+cat(str_c("Estimated value of MSE for moment estimator:   ", round(int_m20[["est"]], 3), "\n\n"))
+cat(str_c("Confidence intervals for moment estimator: (", 
+          round(int_m20[["conf_int_lower"]], 3),  ", ", 
+          round(int_m20[["conf_int_upper"]], 3), ")\n\n"))
+
+cat("\n\n**For n = 20: **\n\n")
+
+int_m200 <- conf_int_mse(estimators_200[["mle"]], 5, 1000)
+cat(str_c("Estimated value of MSE for MLE:   ", round(int_m200[["est"]], 3), "\n\n"))
+cat(str_c("Confidence intervals for MLE: (", 
+          round(int_m200[["conf_int_lower"]], 3),  ", ", 
+          round(int_m200[["conf_int_upper"]], 3), ")\n\n"))
+
+int_m200 <- conf_int_mse(estimators_200[["mom"]], 5, 1000)
+cat(str_c("Estimated value of MSE for moment estimator:   ", round(int_m200[["est"]], 3), "\n\n"))
+cat(str_c("Confidence intervals for moment estimator: (", 
+          round(int_m200[["conf_int_lower"]], 3),  ", ", 
+          round(int_m200[["conf_int_upper"]], 3), ")\n\n"))
+
+```
 
 
-### Conclusions
+<!-- \pagebreak -->
+
+## Conclusions
+
+As we would expect, the bias converges to zero with n. For the bigger sample size, both estimators have much better results. 
+
+Both MLE and moment estimator have very similar results. For both sample sizes, the MLE has slightly greater bias and smaller variance. To combine those insights, we can look at the MSE. As we can see, the MLE performs a little better. Both estimators have MSE greater then expected for n=20 and MSE rougly equal to expected value for n=200. 
+
+Resuming: for most cases, MLE is the best choice. If we want to ensure the smallest bias, we can decide to use the moment estimator. Both estimator behave very similar, so the moment estimator is a good choice, when the MLE can by analitycaly derived. 
+
+\pagebreak
 
 # Task 2
+
+In the second task, we will focus on the problem of testing a simple hypothesis for the rate parameter of the exponential distribution. We will test the null hypothesis $$H_0: \quad \lambda = 5$$ against the alternative $$H_1: \quad \lambda = 3$$ on the significance level $\alpha = 0.05$.
+
+We will consider rejecting the null hypothesis both when it is actually true and not. Rejecting the null hypothesis when it is true is the Type I Error. The probability of Type I Error should be lower than the significance level of the test $\alpha$. The probability of rejecting the null hypothesis when it is false is called the power of the test. The test (on the given significance level $\alpha$) is the better, the greater is the value of power.
+
+First, some theoretical caculations will be presented. Then, we will run some simulations.
+
+## Theoretical Calculations
+
+### Test Definition
+
+Let us start from finding the uniformly most powerfull test. We will use the formula from Neyman  - Person Theorem. 
+
+PDF of the exponential distribution with rate parameter $\lambda$: $$f(x, \lambda) = \lambda e ^{- \lambda x}$$
+
+To find the most powerfull test we will look at the likelihood ratio: $$\frac{\prod_{i=1}^{n} f(x, 3)}{\prod_{i=1}^{n} f(x, 5)} = \frac{3^{n}e^{-3\sum_{i=1}^{n} x_{i}}}{5^{n}e^{-5\sum_{i=1}^{n} x_{i}}} = \Big(\frac{3}{5}\Big)^{n}e^{2\sum_{i=1}^{n}x_{i}}$$
+
+We will recejt the null hypothesis, when the likelihood will be greater than some number $k$:
+
+$$\Big(\frac{3}{5}\Big)^{n}e^{2\sum_{i=1}^{n}x_{i}} > k$$
+Equivalenty:
+
+$$\sum_{i=1}^{n} X_{i} > k'$$
+
+The value $k'$ ($k$) is the border of the critical region. We can find it using below equality:
+
+$$P_{H_{0}}\Big(\sum_{i=1}^n X_i > k'\Big) = \alpha$$
+
+So, the critical value of the test Satistics $T(X) := \sum_{i=1}^{n} X_{i}$ is:
+
+$$k' = F^{-1}_{Gamma(n, 5)}(1 - \alpha)$$
+
+We will consider $n=20, 200$. For this sample sizes, the critical value is roughly equal:
+
+$$k'_{20} \approx 5.576$$
+$$k'_{200} \approx 44.763$$
+
+
+Summarising, we have the test function 
+$$\varphi (X) = \mathbbm{1}_{(k', \infty)} (T(X))$$
+
+### p-value
+
+Definition of p-value:
+
+$$p = P_{H_0} (T > T(X)) = 1 - F_{Gamma(n, 5)} (T(X))$$
+
+where T is a random variable from the same distribution as $T(X)$.
+
+As the distribution is continuous, the test is of size $\alpha$. This means, that the p-value (the probability of type 1 error) is equal to $\alpha$.
+
+$$p = P_{H_0} (T > T(X)) = 1 - F_{Gamma(n, 5)} (T(X))$$
+
+**p-value distribution:**
+
+When the null hypothesis is true, the p-value is distributed uniformly under $H_0$. 
+
+Proof:
+
+Let $T \sim Gamma(n, 5)$.
+
+$$P\Bigg(P\Big(T > T(X)\Big) < a\Bigg) = $$
+
+$$P\Big(1 - F_{Gamma(n, 5)} (T(X)) < a\Big) = $$
+
+$$P \Big( F_{Gamma(n, 5)} (T(X)) \geq 1 - a\Big) = $$ 
+
+$$P \Big( T(X) \geq F^{-1}_{Gamma(n, 5)} (1 - a)\Big) = $$ 
+$$1 - F_{Gamma(n, 5)}(F^{-1}_{Gamma(n, 5)} (1 - a)) = $$
+$$1 - (1 - a) = a $$
+We have shown that $P_{H_0}(p < a) = a$, so the p-value is uniformally distributed under $H_0$. 
+
+### Power
+
+The power is the probablity of receting the null hypothesis, when it is in fact false:
+
+$$P_{H_{1}}\Big(\sum_{i=1}^n X_i > k'\Big) = P_{H_{1}}\Big(\sum_{i=1}^n X_i > F^{-1}_{Gamma(n, 5)}(0.95)\Big)  = 1 - F_{Gamma(n, 3)}(F^{-1}_{Gamma(n, 5)}(0.95))$$
+
+For our ns, the powers are rougly equal:
+
+$$\gamma_{20} \approx 0.764 $$
+$$\gamma_{200} \approx 1.0 $$
+
+## Simulations
+
+We will look at the probability of rejecting the null hypothesis when the data is simulated from $H_0$ and $H_1$ distributions. 
+
+### p-values
+
+Data generated from $H_0$ distribution.
+
+<!-- The probability of rejecting the null hypothesis is called p-value or probability of Type I Error.  -->
+
+#### Distribution
+
+Below plots show the histogram and QQ plots of p-values. 
+
+```{r provide_data_2, results="asis"}
+sim_2_h0_20 <- simulation_2(5, 20, 1000)
+sim_2_h0_200 <- simulation_2(5, 200, 1000)
+sim_2_h1_20 <- simulation_2(3, 20, 1000)
+sim_2_h1_200 <- simulation_2(3, 200, 1000)
+```
+
+
+```{r qqplots2, results="asis"}
+sim_2_h0_20_df <- as.data.frame.numeric(t(t(sim_2_h0_20)))
+colnames(sim_2_h0_20_df) <- c("p_value")
+
+sim_2_h0_200_df <- as.data.frame.numeric(t(t(sim_2_h0_200)))
+colnames(sim_2_h0_200_df) <- c("p_value")
+
+p1 <- ggplot(sim_2_h0_20_df,  aes(x=p_value)) + 
+  geom_histogram(aes(y=..density..), bins=25)  + 
+  labs(title="Histogram for n=20") + xlab("") + ylab("") + 
+  stat_function(fun = dunif, args = list(min = min(sim_2_h0_20_df[["p_value"]]), 
+                                         max = max(sim_2_h0_20_df[["p_value"]])), n=1000) +
+  xlim(0, 1)+ 
+  theme(plot.title = element_text(size=12))
+
+p2 <- ggplot(sim_2_h0_20_df,  aes(sample=p_value)) + 
+  geom_qq(distribution = stats::qunif, size=0.5) + 
+  labs(title="QQ-plot for n=20") + xlab("") + ylab("") + 
+  stat_qq_line(distribution = stats::qunif, color="green") + 
+  theme(plot.title = element_text(size=12))
+
+p3 <- ggplot(sim_2_h0_200_df,  aes(x=p_value)) + 
+  geom_histogram(aes(y=..density..), bins=25)  + 
+  labs(title="Histogram for n=200") + xlab("") + ylab("") + 
+  stat_function(fun = dunif, args = list(min = min(sim_2_h0_20_df[["p_value"]]), 
+                                         max = max(sim_2_h0_20_df[["p_value"]])), n=1000) +
+  xlim(0, 1) + 
+  theme(plot.title = element_text(size=12))
+
+p4 <- ggplot(sim_2_h0_200_df,  aes(sample=p_value)) + 
+  geom_qq(distribution = stats::qunif, size=0.5) + 
+  labs(title="QQ-plot for n=200") + xlab("") + ylab("") + 
+  stat_qq_line(distribution = stats::qunif, color="green") + 
+  theme(plot.title = element_text(size=12))
+
+grid.arrange(p1, p2, p3, p4, ncol=2, 
+             bottom="value", top="p-values")
+```
+
+#### Confidence Intervals
+
+
+```{r error-CI, results="asis"}
+cat("**For n = 20: **\n\n")
+
+int_b20 <- conf_int_2(sim_2_h0_20, 0.05)
+cat(str_c("Estimated value of Type I Error:   ", int_b20$est, "\n\n"))
+cat(str_c("Confidence intervals: (", 
+          round(int_b20[["conf_int_lower"]], 3),  ", ", 
+          round(int_b20[["conf_int_upper"]], 3), ")"))
+
+cat("\n\n**For n = 200: **\n\n")
+
+int_b200 <- conf_int_2(sim_2_h0_200, 0.05)
+cat(str_c("Estimated value of Type I Error:   ", int_b200$est, "\n\n"))
+cat(str_c("Confidence intervals: (", 
+          round(int_b200[["conf_int_lower"]], 3),  ", ", 
+          round(int_b200[["conf_int_upper"]], 3), ")"))
+```
+
+###  Power
+
+Data generated from $H_1$ distribution.
+
+<!-- The probability of rejecting the null hypothesis is called power.  -->
+
+
+#### Distribution
+
+Below plots show the histogram and QQ plots of power. 
+
+```{r qqplots3, results="asis"}
+sim_2_h1_20_df <- as.data.frame.numeric(t(t(sim_2_h1_20)))
+colnames(sim_2_h1_20_df) <- c("power")
+
+sim_2_h1_200_df <- as.data.frame.numeric(t(t(sim_2_h1_200)))
+colnames(sim_2_h1_200_df) <- c("power")
+
+p1 <- ggplot(sim_2_h1_20_df,  aes(x=power)) + 
+  geom_histogram(aes(y=..density..), bins=25)  + 
+  labs(title="Histogram for n=20") + xlab("") + ylab("") + 
+  # stat_function(fun = dunif, args = list(min = min(sim_2_h0_20_df[["p_value"]]), 
+                                         # max = max(sim_2_h0_20_df[["p_value"]])), n=1000) +
+  theme(plot.title = element_text(size=12))
+
+p2 <- ggplot(sim_2_h1_20_df, aes(sample=power)) + 
+  geom_qq(distribution = stats::qunif, size=0.5) + 
+  labs(title="QQ-plot for n=20") + xlab("") + ylab("") + 
+  # stat_qq_line(distribution = stats::qunif, color="green") + 
+  theme(plot.title = element_text(size=12))
+
+p3 <- ggplot(sim_2_h1_200_df,  aes(x=power)) + 
+  geom_histogram(aes(y=..density..), bins=25)  + 
+  labs(title="Histogram for n=200") + xlab("") + ylab("") + 
+  # stat_function(fun = dunif, args = list(min = min(sim_2_h0_20_df[["p_value"]]), 
+                                         # max = max(sim_2_h0_20_df[["p_value"]])), n=1000) +
+  theme(plot.title = element_text(size=12))
+
+p4 <- ggplot(sim_2_h1_200_df,  aes(sample=power)) + 
+  geom_qq(distribution = stats::qunif, size=0.5) + 
+  labs(title="QQ-plot for n=200") + xlab("") + ylab("") + 
+  # stat_qq_line(distribution = stats::qunif, color="green") + 
+  theme(plot.title = element_text(size=12))
+
+grid.arrange(p1, p2, p3, p4, ncol=2, 
+             bottom="value", top="Power")
+```
+
+#### Confidence Intervals
+
+
+```{r power-CI, results="asis"}
+cat("**For n = 20: **\n\n")
+
+int_b20 <- conf_int_2(sim_2_h1_20, 0.05)
+cat(str_c("Estimated value of power:   ", int_b20$est, "\n\n"))
+cat(str_c("Confidence intervals: (", 
+          round(int_b20[["conf_int_lower"]], 3),  ", ", 
+          round(int_b20[["conf_int_upper"]], 3), ")"))
+
+cat("\n\n**For n = 200: **\n\n")
+
+int_b200 <- conf_int_2(sim_2_h1_200, 0.05)
+cat(str_c("Estimated value of power:   ", int_b200$est, "\n\n"))
+cat(str_c("Confidence intervals: (", 
+          round(int_b200[["conf_int_lower"]], 3),  ", ", 
+          round(int_b200[["conf_int_upper"]], 3), ")"))
+```
+
+## Conclusions
+
+The results of the simulations match the theoretical expectations:
+
+- the p-values are uniformally distributed under $H_0$;
+
+- the p-values under $H_0$ are close to $\alpha$;
+
+- the power is not uniformly distributed under $H_1$, the mass is concentrated around 0;
+
+- the value of power is close to the theoretically derived values. 
+
+- the bigger sample is considered, the better tests one can make. 
+

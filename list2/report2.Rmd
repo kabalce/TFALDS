@@ -1,0 +1,525 @@
+---
+title: "Report 2"
+author: "Klaudia Balcer"
+date: "11/5/2021"
+output: 
+  pdf_document:
+    extra_dependencies: ["bbm"]
+---
+
+\tableofcontents
+
+\pagebreak
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(gridExtra)
+library(tidyr)
+library(dplyr)
+library(latex2exp)
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(include = TRUE)
+set.seed(1998)
+```
+
+# Task 1
+
+In the first task, we will compare the **cumulative distribution functions** (CDFs) for the standard normal distribution and t-student distribution with certain degrees of freedom.  
+
+```{r task_1_cdfs}
+xs <- seq(-6, 6, 0.1)
+ns <- c(1, 3, 5, 10, 100)
+
+cdfs <- data.frame(list(X = xs, norm = pnorm(xs)))
+
+for (n in ns) {
+  cdfs <- cbind(cdfs, pt(xs, n))
+  names(cdfs)[dim(cdfs)[2]] <- paste0("t_", n)
+}
+cdfs <- gather(cdfs, distribution, cdf_value, -X)
+cdfs$distribution <- factor(cdfs$distribution, ordered=T, levels = c("norm", "t_1", "t_3", "t_5", "t_10", "t_100"))
+
+
+ggplot(cdfs) + 
+  geom_line(aes(x=X, y=cdf_value, color=distribution, linetype=distribution != "norm")) +
+  labs(title="") + xlab("") + ylab("") + 
+  theme(plot.title = element_text(size=12)) +
+  scale_linetype_manual(name = 'distribution', 
+         values =c(1, 2), labels = c("N(0, 1)", "t")) + 
+  scale_colour_manual(name = 'distribution', 
+         values =1:6, labels = list(norm = "N(0, 1)", t_1 = "t(1)", t_3 = "t(3)", t_5 = "t(5)", t_10 = "t(10)", t_100 = "t(100)")) +
+  labs(title="Student and normal distribution CDFs") + xlab("x") + ylab("y")
+
+```
+With the growing number of degrees of freedom, the student distribution converges to the standard normal distribution. When $n$ is equal $100$ the difference between the CDFs is invisible. 
+
+# Task 2
+
+In the first task, we will compare the **cumulative distribution functions** (CDFs) for the standard normal distribution and normalized $\chi^2$ distribution with certain degrees of freedom.  
+
+We will use the following formula for standarizing the $\chi^2$ distribution:
+
+$$T = \frac{\chi^2_{df} - df}{\sqrt{2df}}$$
+Let's take a look on the distribution of the standarized random variables:
+
+$$P\Big(\frac{\chi^2 - df}{\sqrt{2df}} < k \Big) = P\Big(\chi^2 - df < k {\sqrt{2df}}\Big) = P\Big(\chi^2 < k \sqrt{2df} + df \Big)$$
+
+Equivalently:
+
+$$F_T(k) = F_{\chi^2_{df}}(k \sqrt{2df} + df)$$
+
+```{r task_2_cdfs}
+xs <- seq(-5, 5, 0.1)
+ns <- c(1, 3, 5, 10, 100)
+
+cdfs <- data.frame(list(X = xs, norm = pnorm(xs)))
+
+for (n in ns) {
+  cdfs <- cbind(cdfs, pchisq(xs * (2*n)^.5 + n, n))
+  names(cdfs)[dim(cdfs)[2]] <- paste0("chisq_", n)
+}
+cdfs <- gather(cdfs, distribution, cdf_value, -X)
+cdfs$distribution <- factor(cdfs$distribution, ordered=T, 
+                            levels = c("norm", "chisq_1", "chisq_3", "chisq_5", "chisq_10", "chisq_100"))
+
+ggplot(cdfs) + 
+  geom_line(aes(x=X, y=cdf_value, linetype=(distribution != "norm"), color=distribution)) +
+  labs(title=unname(TeX("$\\chi^2$ and normal distribution CDFs"))) + xlab("") + ylab("") + 
+  theme(plot.title = element_text(size=12)) + 
+  scale_linetype_manual(name = 'distribution', 
+         values =c(1, 2), labels = c("N(0, 1)",  unname(TeX("$\\chi^2$")))) + 
+  scale_colour_manual(name = 'distribution', 
+         values = 1:6, labels = list(norm = "N(0, 1)", 
+                                    chisq_1 = unname(TeX("$\\chi^2(1)$")), 
+                                    chisq_3 = unname(TeX("$\\chi^2(3)$")), 
+                                    chisq_5 = unname(TeX("$\\chi^2(5)$")),
+                                    chisq_10 = unname(TeX("$\\chi^2(10)$")), 
+                                    chisq_100 = unname(TeX("$\\chi^2(100)$"))
+                                    ))
+
+```
+
+With the growing number of degrees of freedom, the $\chi^2$ distribution converges to the standard normal distribution. When $n$ is equal $100$ the difference between the CDFs is almost invisible. The convergence is slower than for student distribution. 
+
+# Task 3
+
+In this task, we will consider the global testing for the expected value of the Poisson distribution.
+
+## Problem Definition
+
+The Poisson distribution with the rate parameter $\lambda$ has the following **probability mass function** (PMF):
+
+$$\mathbb{P}(X = k) = \frac{\lambda ^k}{k!}e^{-\lambda}$$
+
+Both mean and variance of a random variable from $Poi(\lambda)$ are equal $\lambda$.
+
+## Simple Hypothesis Test
+
+Let's define the simple hypothesis test problem:
+
+$$H_{0,i}: \lambda = 5 \Leftrightarrow \mathbb{E}X = 5$$
+$$H_{1,i}: \lambda > 5 \Leftrightarrow \mathbb{E}X > 5$$
+In this problem, the test statistics is as follows:
+
+$$T(X) = \frac{1}{n} \sum_{i=1}^n X_i = \bar{X}$$
+The test statistics has the following distribution: 
+
+$$nT(X) \sim Poi(n\lambda)$$
+
+Let's calculate the critical value of the right-sided critical region:
+
+$$\mathbb{P}(T(X) > c) = \mathbb{P}(nT(X) > nc) = 1 - F_{Poi(n\lambda)}(nc) = \alpha = 0.05$$
+$$c =  \frac{1}{n}F^{-1}_{Poi(n\lambda)}(0.95) $$
+Note: as the distribution is discrete, the significance level and the size of the test may differ.
+
+### P-value:
+
+Definition of p-value:
+
+$$p = \mathbb{P}_0(T > T(X)) = \mathbb{P}_0(nT > nT(X)) = 1 - F_{Poi(n\lambda)}(nT(X))$$
+
+Function in R calculating the p-value for testing a random vector `X` for parameter `lambda`:
+
+```{r poi_p-value, echo=TRUE}
+pval <- function(X, lambda=5) {
+  1 - ppois(sum(X), length(X) * lambda)
+}
+```
+
+```{r }
+provide_one_observation <- function(n=1000, lambda=5) {  # x1 = X1,1, ..., X1,1000
+  rpois(n, lambda)
+}
+
+calculate_p_values <- function(m1=1000, n=1000, lambda=5) {
+  obs <- replicate(m1, provide_one_observation(n, lambda)) # X = x1, x2, ..., x1000
+  sapply(seq(n), function(i) pval(obs[i, ], lambda)) # vector of p-values calculated on m1 obs
+}
+```
+
+Histograms of p-values for simple hypothesis:
+
+```{r ,results='asis'}
+pvals <- calculate_p_values()
+
+ggplot() + geom_histogram(aes(x=pvals, y=..density..))  +
+  labs(title= unname(TeX("p-values for testing $\\lambda$ in Poisson distribution"))) + 
+  xlab("p-values") + ylab("density") + 
+  theme(plot.title = element_text(size=12))
+```
+The above plot shows a histogram of 1000 p-values. Each of those p-values was calculated using a random vector of length 1000. The distribution of p-values does not seem to be uniform. And in fact, it is not as we consider a discrete distribution.
+
+## Global Hypothesis Test
+
+Now, let's consider $m=1000$ simple hypothesis. Instead of testing them separatly, we will perform a global test. 
+
+First, we need to define the global hypotheses:
+
+$$H_0: \bigcap_{j=1}^n H_{0,j}$$
+$$H_1: \bigcup_{j=1}^n H_{1,j}$$
+To perform the global testing, we will use Bonferroni and Fisher methods. We will compare the properties of those approaches under $H_0$ and $H_1$.
+
+### Test Statitics
+
+Let's denote $p_i$ as the p-value in the simple testing problem $H_{0,i}$ vs $H_{1,i}$.
+
+#### Bonferroni Test
+
+The Bonferronie test statistics has the formula as follows:
+
+$$T_{bonf} = min\{p_i\}$$
+We reject the null hypothesis for small values of the test statistics: 
+
+$$\varphi_{bonf} = T_{bonf}  < \frac \alpha m$$
+
+#### Fisher Test
+
+The Fisher test statistics has the formula as follows:
+
+$$T_{fish} = -2 \sum_{i=1}^nlog (p_i)$$
+We reject the null hypothesis for big values of the test statistics: 
+
+$$\varphi_{fish} = T_{fish} > \chi^2_{2n}(1 - \alpha)$$
+
+Note: The limiting distribution of the statistics $T_{fish}$ can be prescribed only for testing in continuous distributions. For a discrete distribution, the p-values $p_i$ in the simple tests are not uniformly distributed. Thus, the distribution of the test statistics cannot be derived. We use the $\chi^2_{2n}$ distribution as a simple satisfying approximation. However, **in the case of discrete distribution, the probability of Type I Error may not exactly meet our expectations.**
+
+### Type I Error
+
+Probability of Type I Error has an upper bound of the significance level of the test. For test statistics with continuous distribution, the probability of Type I Error is equal $\alpha$. For discrete distributions, in most cases the probability of Type I Error is lower than $\alpha$.
+
+For Bonferroni test, the probability of Type I error is equal to the probability of Type I Error for simple hypothesis for independent $p_i$s and lower for dependent $p_i$s.
+
+For Fisher test, the probability of Type I Error converges to $\alpha$ for continuous distributed random variables. In other cases, we have no exact formula for the distribution of the test statistics. Thus, the probability of Type I Error is expected to be a value around $\alpha$ (without more specific expectations).
+
+Estimation of Type I Errors:
+
+```{r simulation3, results='asis'}
+test_bonf <- function(p_vec, alpha=0.05) {
+  min(p_vec) < alpha / length(p_vec)  # run bonf on p-values
+}
+
+test_fisher <- function(p_vec, alpha=0.05) {
+  sum(-2 * log(p_vec)) > qchisq(1-alpha, 2*length(p_vec))
+}
+
+estimate_bonf_pval <- function(m2=1000, m1=1000, n=1000, lambda=5, alpha=0.05) {
+  replicate(m2, {X <- calculate_p_values(m1, n, lambda); 
+  list(Bonf = as.numeric(test_bonf(X, alpha)), Fisher=as.numeric(test_fisher(X, alpha)))})
+}
+
+results <- estimate_bonf_pval()
+cat(paste0("P(Type I Error | Bonferroni) = ", mean(simplify2array(results["Bonf", ])), "\n\n"))
+cat(paste0("P(Type I Error | Fisher ) = ",    mean(simplify2array(results["Fisher", ])), "\n\n"))
+```
+
+### Power
+
+We will provide simulation under two alternatives:
+
+- one strong effect (needle in the haystack problem),
+
+- many small effects.
+
+As Bonferroni takes only the lowest $p_i$ in account, it is more likeli that it will discover the single strong signal. Fisher looks on all the signals and summarises all effects. Thus, this test is likeli to discover a very strong (in respect to the number of hypotheses) signal or many small signals.
+
+#### Alternative with single strong signal
+
+
+```{r sim_3_alternative1, results='asis'}
+provide_one_observation <- function(n=1000, lambda) {  # x1 = X1,1, ..., X1,1000
+  c(rpois(n-1, 5), rpois(1, 7)) 
+}
+
+calculate_p_values <- function(m1=500, n=1000, lambda=5) {
+  obs <- replicate(m1, provide_one_observation(n, lambda)) # X = x1, x2, ..., x1000
+  sapply(seq(n), function(i) (1 - ppois(sum(obs[i, ]), lambda*m1))) # vector of p-values calculated on m1 obs
+}
+
+test_bonf <- function(p_vec, alpha=0.05) {
+  min(p_vec) < (alpha / length(p_vec))  # run bonf on p-values
+}
+
+test_fisher <- function(p_vec, alpha=0.05) {
+  sum(-2 * log(p_vec)) > qchisq(1-alpha, 2*length(p_vec))
+}
+
+estimate_bonf_pval <- function(m2=100, m1=100, n=1000, lambda=5, alpha=0.05) {
+  replicate(m2, {X <- calculate_p_values(m1, n, lambda); list(Bonf = as.numeric(test_bonf(X, alpha)),
+                                                             Fisher=as.numeric(test_fisher(X, alpha)))})
+}
+
+results <- estimate_bonf_pval()
+cat(paste0("\nPower of Bonferroni: ", mean(simplify2array(results["Bonf", ])), "\n\n"))
+cat(paste0("Power of Fisher: ",    mean(simplify2array(results["Fisher", ])), "\n\n"))
+```
+
+#### Alternative with many small signal
+
+```{r sim_3_alternative2, results='asis'}
+provide_one_observation <- function(n=1000, lambda) {  # x1 = X1,1, ..., X1,1000
+  c(rpois(100, 5.2), rpois(n-100, 5)) 
+}
+
+calculate_p_values <- function(m1=500, n=1000, lambda=5) {
+  obs <- replicate(m1, provide_one_observation(n, lambda)) # X = x1, x2, ..., x1000
+  sapply(seq(n), function(i) (1 - ppois(sum(obs[i, ]), lambda*m1))) # vector of p-values calculated on m1 obs
+}
+
+test_bonf <- function(p_vec, alpha=0.05) {
+  min(p_vec) < alpha / length(p_vec)  # run bonf on p-values
+}
+
+test_fisher <- function(p_vec, alpha=0.05) {
+  sum(-2 * log(p_vec)) > qchisq(1-alpha, 2*length(p_vec))
+}
+
+estimate_bonf_pval <- function(m2=100, m1=100, n=1000, lambda=5, alpha=0.05) {
+  replicate(m2, {X <- calculate_p_values(m1, n, lambda); 
+  list(Bonf = as.numeric(test_bonf(X, alpha)), Fisher=as.numeric(test_fisher(X, alpha)))})
+}
+
+results <- estimate_bonf_pval()
+cat(paste0("\nPower of Bonferroni: ", mean(simplify2array(results["Bonf", ])), "\n\n"))
+cat(paste0("Power of Fisher: ",    mean(simplify2array(results["Fisher", ])), "\n\n"))
+```
+The powers calculated in simulations have met the theoretical expectations.
+
+# Task 4
+
+<!-- # TODO: to jest zbieżność do 1 - popraw -->
+
+In the next tasks, we are going to show the optimality of detection treshold for Bonferroni in needle in Haystack problem. In this task, we will show an approximation of maximum of a random vector from a standard normal distribution.
+
+```{r simulation4}
+get_Ri <- function(n) {
+  obs <- rnorm(n)
+  R <- sapply(2:n, function(i) max(obs[1:i]) / sqrt(2*log(i)))
+}
+
+n <- 10^5  # TODO
+df <- data.frame(list(X = seq(2:n)))
+
+for (i in 1:10) {
+  col <- if_else(i < 10, paste0("R_0", i), paste0("R_", i))
+  df[[col]] <- get_Ri(n)
+}
+df_long <- gather(df, trajectory, value, -X)
+
+ggplot(data=df_long) + geom_line(aes(x=X, y=value, color=trajectory)) +
+  labs(title=unname(TeX("Trajectories $\\frac{max \\{X_n: i \\leq n\\}}{\\sqrt{2log(n)}}$"))) + 
+  xlab(unname(TeX("10^n"))) + 
+  ylab(unname(TeX("max \\{$X_i$: i $\\leq$ n\\} / $T_n$"))) + 
+  theme(plot.title = element_text(size=12)) +
+  guides(color="none") + 
+  geom_hline(yintercept=1, size=.6, linetype=2) +
+  # geom_hline(yintercept=1.5, size=.3, linetype=2) +
+  # geom_hline(yintercept=0.5, size=.3, linetype=2) +
+  scale_x_continuous(trans='log10')
+```
+
+At the above plot, we can see that the maximum of $n$ independent random variables from the standard normal distribution converges to $\sqrt{2log(n)}$.
+
+# Task 5
+
+In this task, we will study the properties of the likelihood function and its approximation in needle in the haystack problem. 
+
+## Problem Definition
+
+Let's have a random vector $Y=(Y_1, Y_2, \ldots, Y_n) \sim N(\vec{\mu}, I)$ and the testing problem:
+$H_0: $ all $\mu_j$ are equal 0 against
+$H_1:$ $\mu_i = \gamma = (1 - \epsilon)\sqrt{2log(n)}$ for $\epsilon \in (0, \frac 1 2)$, the rest of $\mu_j$ are equal 0.
+
+The alternative hypothesis is not simple. We could translate it as: $H_1: \vec\mu \sim \pi$. Than $P(\mu_i \neq 0) = \frac 1 n$ for all $i=1, \ldots, n$.
+
+\pagebreak
+
+Let's look at the likelihood ratio:
+
+$$L(X, \gamma) = \frac {\frac 1 n \sum_{i=1}^n\Bigg[\prod_{j=1, j\neq i}^n\frac{1}{\sqrt{2\pi}\sigma}e^{-\frac{x^2_j}{2\sigma^2}}\cdot\frac{1}{\sqrt{2\pi}\sigma}e^{-\frac{(x_i-\gamma)^2}{2\sigma^2}}\Bigg]} {\prod_{j=1}^n\frac{1}{\sqrt{2\pi}\sigma}e^{-\frac{x^2_j}{2\sigma^2}}}$$
+$$
+L(X, \gamma) = \frac{(\frac{1}{\sqrt{2\pi}\sigma})^n } {(\frac{1}{\sqrt{2\pi}\sigma})^n }  \frac 1 n \sum_{i=1}^n  \frac {\prod_{j=1, j\neq i}^n e^{-\frac{x^2_j}{2\sigma^2}}\cdot e^{-\frac{(x_i-\gamma)^2}{2\sigma^2}}} {\prod_{j=1}^ne^{-\frac{x^2_j}{2\sigma^2}}}
+$$
+$$
+L(X, \gamma) =  \frac 1 n \sum_{i=1}^n  \frac {e^{-\frac{(x_i-\gamma)^2}{2\sigma^2}}} {e^{-\frac{x^2_j}{2\sigma^2}}}
+$$
+
+$$L(X, \gamma) =\frac 1 n \sum_{i=1}^n  e^{\gamma x_i - \gamma^2/2}$$
+
+Let's consider a approximation of the likelhood ratio:
+
+$$\tilde L(X, \gamma) =\frac 1 n \sum_{i=1}^n  e^{\gamma x_i - \gamma^2/2} \cdot \mathbbm{1}\{Y_i < \sqrt{2 log(n)}\}$$
+
+which sums only components restricted by $\sqrt{2 log(n)}$. We know that $\mathbb{P}\Big(max {X_i} \geq \sqrt{2log(n)}\Big) \rightarrow 0$ unger $H_0$, so we expect $\mathbb P (L \neq \tilde L) \rightarrow 0$.
+
+In this task we will study the properites of $L$ and $\tilde L$ under $H_0$.
+
+### Histograms of $L$ and $\tilde L$
+
+Please note: joint histograms have X-axis with limits [0, 5]; those plot do not include outliers. The full distributions can be seen on the individual histograms.
+
+```{r simulation5}
+L_fun <- function(Y, gamma) {
+  mean(exp(gamma * Y - gamma ^ 2 /2))
+}
+
+L_approx_fun <- function(Y, gamma) {
+  mean(exp(gamma * Y - gamma ^ 2 /2) * as.integer(Y < sqrt(2 * log(length(Y)))))
+}
+
+one_iter_5 <- function(n, eps=0.1) {
+  gamma <- (1 - eps) * sqrt(2 * log(n))
+  Y <- rnorm(n)
+  return(c(L = L_fun(Y, gamma), L_approx = L_approx_fun(Y, gamma)))
+}
+
+simulation5 <- function(n, m=1000, eps=0.1) {
+   replicate(m, one_iter_5(n, eps))
+}
+
+results <- data.frame(list(var_L = rep(NA, 3), 
+                           var_L_approx = rep(NA, 3), 
+                           prob = rep(NA, 3)), 
+                      row.names = c("1000", "10000", "1e+05"))
+
+for (n in c(1000, 10000, 100000)) {
+  res <- data.frame(t(simulation5(n)))
+  res2 <- gather(res, statistics, value)
+  res2$statistics <- factor(res2$statistics, ordered=T)
+  p1 <- ggplot(res) + 
+    geom_histogram(aes(x=L, y=..density..), bins = 50) +  # add xlim(0, 3) 
+    labs(title="L") + xlab("") + ylab("") + 
+    theme(plot.title = element_text(size=12))
+  p2 <- ggplot(res) + 
+    geom_histogram(aes(x=L_approx, y=..density..), bins = 50) +
+    labs(title=unname(TeX("$\\tilde{L}$"))) + xlab("") + ylab("") + 
+    theme(plot.title = element_text(size=12))
+  p3 <- ggplot() +  # fix the plot
+    geom_histogram(data=res, aes(x=L, y=..density..), 
+                   alpha = 0.5, bins = 25, fill = "red") +
+    geom_histogram(data=res, aes(x=L_approx, y=..density..), 
+                   alpha = 0.5, bins = 25, fill = "blue") +
+    labs(title=unname(TeX("$\\tilde{L}$ and $L$"))) + xlab("") + ylab("") + 
+    theme(plot.title = element_text(size=12)) + xlim(c(0, 5)) + 
+    scale_fill_manual(name = 'Statistics', 
+         values =c("red", "blue"), labels = c("L",  unname(TeX("$\\tilde{L}$"))))
+  grid.arrange(p1, p2, p3, layout_matrix=rbind(c(3, 1), c(3, 2)),  
+             left="density", bottom="value", top=paste0("n = ", as.character(n)))
+  # show(p3)
+  
+  results[as.character(n), "var_L"] <- var(res$L)
+  results[as.character(n), "var_L_approx"] <- var(res$L_approx)
+  results[as.character(n), "prob"] <- mean(res$L == res$L_approx)
+}
+```
+
+### Properties of $L$ and $\tilde L$
+
+```{r , results='asis'}
+results$n <- rownames(results)
+rownames(results) <- NULL
+kable(results[, c("n", "var_L", "var_L_approx", "prob")], 
+      col.names = c("n", "Var(L)", "Var(L_approx)", "P(L != L_approx)"))
+```
+
+As $\mathbb{P}\Big(max {X_i} \geq \sqrt{2log(n)}\Big) \rightarrow 0$, the probability, that $L$ and $\tilde{L}$ won't be equal also converges to 0 with the growth of n (**only for weak signals**). We can see it in the simulation results. 
+
+The main difference between $L$ and $\tilde L$ is the variance. We can consider $\tilde L$ as *$L$ without outliers*. We expect that $Var(\tilde L) = o(1)$ and we can see it in the pictures above. Variance of $\tilde L$ is relatively small anddoes not depend on $n$.
+
+# Task 6
+
+In the last task we will study the needly in haystack problem again. This time: under alternative hypothesis.
+
+Let's start with the likelihood ratio:
+
+$$L(X, \gamma) =\frac 1 n \sum_{i=1}^n  e^{\gamma x_i - \gamma^2/2}$$
+In the the most powerfull test, we reject $H_0$ when $L(X, \gamma) > c$, where c is the critical value (a number such that under the null hypothesis, the probability of rejecting the null hypothesis has an upper bound of significance level of the test). Equivalently, we reject $H_0$ when $l(X, \gamma) = log(L(X, \gamma)) > log(c) = c'$.
+
+We will run study the problem for $n = 500, 5000, 50000$ and $\epsilon =0.05, 0.1, 0.2$.
+
+As the likelihood ratio and the loglikelihood ratio do not have a standard distribution, we will use simulations to state the critical value of the test. For each $n$ we will provide $m=10 000$ log-likelihood ratios and get the quantile of $1 - \alpha$ to get the critical value.
+
+```{r , results='asis'} 
+one_iter_6 <- function(n, eps=0.1) {
+  gamma <- (1 + eps) * sqrt(2 * log(n))
+  Y <- rnorm(n)
+  return(log(L_fun(Y, gamma)))
+}
+
+simulation6 <- function(n, m=1000, eps=0.1) {
+   replicate(m, one_iter_6(n, eps))
+}
+
+
+ns <- c(500, 5000, 50000)
+critical_values <- list()
+
+for (n in ns) {
+  critical_values[[as.character(n)]] <- quantile(simulation6(n, 10^4), 0.95)
+}
+
+kable(round(data.frame(critical_values), 3),
+      caption = "Critical values of the NP test based on the loglikelihood ratio", 
+      row.names = F, col.names = c(500, 5000, 50000))
+```
+
+Then, for each pair of $n$ and $\epsilon$ we will provide a random sample and test the hypothesis using: 
+
+- the most powerfull test
+
+- Bofnerroni test
+
+- Bonferroni test with corrected $\alpha$ (such that the probability of Type I Error for Bonferroni is $\alpha$)
+
+Please note: in this task we have a two-sided alternative. 
+
+```{r}
+run_one_test <- function(eps, n) {
+  gamma <- (1 + eps) * sqrt(2 * log(n))
+  X <- c(rnorm(1, gamma), rnorm(n-1))
+  l <- log(L_fun(X, gamma))
+  p <- min(1 - pnorm(abs(X)))
+  alpha_corrected <- 1 - (1 - 0.05)^(1/ (2 * n))
+  return(t(c(l = l > critical_values[[as.character(n)]], p = p < 0.05 / (n * 2), p_corr = p < alpha_corrected)))
+}
+df_b <- data.frame()
+df_b_c <- data.frame()
+df_np <- data.frame()
+
+for (n in ns) {
+  for (eps in c(0.05, 0.1, 0.2)) {
+    r <- replicate(1000, run_one_test(eps, n))
+    df_np[as.character(n), as.character(eps)] <- mean(r[, 1, ])
+    df_b[as.character(n), as.character(eps)] <- mean(r[, 2, ])
+    df_b_c[as.character(n), as.character(eps)] <- mean(r[, 3, ])
+  }
+}
+
+kable(df_b, caption = "Power of Bonferroni test")
+kable(df_b_c, caption = "Power of Bonferroni test (with corrected significance level for simple tests)")
+kable(df_np, caption = "Power of Neyman-Person test")
+```
+
+As we can see, correcting $\alpha$ for Bonferroni makes only small changes. Bonferroni's power is very close to the maximal. 
