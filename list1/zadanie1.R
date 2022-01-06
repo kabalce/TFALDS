@@ -1,6 +1,3 @@
-# beta
-# 
-
 MLE_of_beta <- function(X) {
   n <- length(X)
   return((-1) * n / sum(sapply(X, log)) - 1)
@@ -23,6 +20,31 @@ simulation_1 <- function(a, n, m) {
   # dim2  statistic
   # dim3  iteration
   replicate(m, provide_estimators_1(a, n))
+}
+
+conf_int_bias <- function(a_vec, a, m, alph=0.05) {
+  bs <- a_vec - a
+  b <- mean(bs)
+  b_sd <- sd(bs)
+  return (list(conf_int_lower = b - qnorm(1 - alph / 2) * b_sd / sqrt(m),
+               conf_int_upper = b + qnorm(1 - alph / 2) * b_sd / sqrt(m), 
+               est = b))
+}
+
+conf_int_mse <- function(a_vec, a, m, alph=0.05) {
+  mses <- (a_vec - a) ^ 2
+  mse <- mean(mses)
+  mse_sd <- sd(mses)
+  return (list(conf_int_lower = mse - qnorm(1 - alph / 2) * mse_sd / sqrt(m), 
+               conf_int_upper = mse + qnorm(1 - alph / 2) * mse_sd / sqrt(m), 
+               est = mse))
+}
+
+conf_int_var <- function(a_vec, a, m, alph=0.05) {
+  v <- var(a_vec)
+  return (list(conf_int_lower = (m - 1) * v / qchisq(1 - alph / 2, m - 1), 
+               conf_int_upper = (m - 1) * v / qchisq(alph / 2, m - 1), 
+               est = v))
 }
 
 
