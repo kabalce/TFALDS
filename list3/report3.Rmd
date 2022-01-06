@@ -41,7 +41,8 @@ set.seed(2021)
 HC_test_stat <- function(p_vec) {
   n <- length(p_vec)
   CDF <- ecdf(p_vec)
-  ts <- seq(1 / length(p_vec) + 0.0001, 1 / 2 - 0.0001, length=1000)
+  ts <- seq(1 / length(p_vec) + 0.0001, 1 / 2 - 0.0001, length=10000)
+
   max(sqrt(n) * (CDF(ts) - ts) / sqrt(ts * (1 - ts)))
 }
 
@@ -55,7 +56,7 @@ HC_test_stat <- function(p_vec) {
 mHC_test_stat <- function(p_vec) {
   n <- length(p_vec)
   CDF <- ecdf(p_vec)
-  ts <- seq(0.0001, 1-0.0001, length=1000)
+  ts <- seq(0.0001, 1-0.0001, length=10000)
   max(sqrt(n) * (CDF(ts) - ts) / sqrt(ts * (1 - ts) * log(log(1 / (ts * (1 - ts))))))
 }
 ```
