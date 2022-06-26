@@ -1,0 +1,505 @@
+---
+title: "Report 4"
+author: "Klaudia Balcer"
+date: "12/17/2021"
+output: 
+  pdf_document:
+    extra_dependencies: ["bbm", "caption", "tabularx", "booktabs", "graphicx"]
+    toc: true
+    toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(include = TRUE)
+
+library(ggplot2)
+library(knitr)
+library(reshape2)
+library(sfsmisc)
+library(purrr)
+library(stringr)
+
+set.seed(2021)
+```
+
+# Task 1
+
+We will construct the most powerful test using the Carlin-Rubin Theorem for the problem:
+
+$$H_{0,i}:  \mu_i = 3 \quad \Big(\lambda_i = \frac 1 3\Big) \quad vs  \quad H_{1,i}:  \mu_i  >  3 \quad \Big(\lambda_i < \frac 1 3\Big)$$
+
+<!-- $\Theta = [3, +\infty)$ - the space of the parameters.  -->
+
+First,  we need to show that the likelihood ration is monotonic. Let's  have $\lambda_1  < \lambda_2 \in \Theta$,  $\lambda_i =  \frac 1 {\mu_i}$.
+
+$$L(X) =  
+\frac{\prod_{j=1}^m f(x_j, \lambda_2)} {\prod_{j=1}^m f(x_j, \lambda_1)} = 
+\frac {\prod_{j=1}^m \lambda_2 e^{-x_j \lambda_2}} {\prod_{j=1}^m \lambda_1 e^{-x_j \lambda_1}} = 
+\Big(\frac {\lambda_2} {\lambda_1}\Big)^m e ^{-(\lambda_2 - \lambda_1) \sum_{j=1}^m x_j}$$
+
+Let $T= \sum_{i=1}^n x_i$, than
+
+$$L(X) = \Big(\frac {\lambda_2} {\lambda_1}\Big) ^ n e ^{-(\lambda_2 - \lambda_1) T}$$
+is a non-decreasing function of the statistic $-T$.
+
+We reject $H_{0, i}$ if $-T < c$,  for  T such that $\mathbb{E}_{\mu = 3}\Big[-T < c\Big] = \alpha$.
+
+We know that under $H_{0, i}$ $T \sim Gamma(n, \frac 1 3)$. Thus, $-c = F^{-1}_{Gamma(n, \frac 1 3)}(1 - \alpha)$.
+
+Summarizing, we reject $H_{0, i}$ if $T >  F^{-1}_{Gamma(n, \frac 1 3)}(1 - \alpha)$.
+
+```{r most_powerful_test}
+cr_test <- function(X, alpha=0.05) {
+  as.integer(sum(X) > qgamma(alpha, length(X), 1/3))
+}
+
+pval <- function(T_stat, m) {
+  1 - pgamma(T_stat, m, 1/3)
+}
+```
+
+The p-value of the test:
+
+$$p = \mathbb{P}_0(t > T) = 1 - F_{Gamma(n, \frac 1 3)}(T)$$
+
+# Task 2
+
+Bonferroni:
+
+Reject $H_{0, i}$ if $$p_i < \frac \alpha  n$$
+
+BFDR:
+
+$$\frac {(1 -  \epsilon) (1 - F_{m, 3}(c_{BFDR}))} {1 -  ((1 - \epsilon) F_{m, 3}(c_{BFDR}) + \epsilon F_{m, 5.5}(c_{BFDR}))} = q$$
+
+```{r test_procedures}
+benjamini_hochberg <- function(pvals, alpha) {
+  n <- length(pvals)
+  ord <- order(pvals)
+  ord2 <- order(ord)
+  res <-( pvals[ord] <= ((alpha * seq(n) / n)))
+  sapply(1:n, function(i) any(res[i:n]))[ord2]
+}
+
+bonferroni <- function(pvals, alpha) {
+  n <- length(pvals)
+  pvals <= (alpha / n)
+}
+
+BFDR_threshold <- function(eps, m, q=0.05) {
+  f <- function(c) {
+    (1 -  eps) * (1 - pgamma(c,  m, 1/3)) / (1 - (( 1 - eps) * pgamma(c, m, 1/3) + eps * pgamma(c, m,  1/5.5))) - q
+  }
+  mm <- if (m < 50) 200 else 600
+  uniroot(f, c(10e-10, mm))$root
+}
+
+bayes <- function(T, threshold) {
+  T > threshold
+}
+```
+
+
+```{r metrics}
+FDR <- function(true_values, test_results) {
+  val <- sum(test_results[which(!true_values)]) / max(sum(test_results), 1)
+  if (is.na(val)) 0 else val
+}
+
+power <- function(true_values, test_results) {
+  val <- mean(test_results[which(true_values)])
+  if (is.na(val)) 0 else val
+}
+
+cost <- function(true_values, test_results, c0,  cA) {
+  val <- sum((true_values != test_results) * (c0 * true_values +  cA * test_results))
+  if (is.na(val)) 0 else val
+}
+```
+
+```{r simulation_functions}
+mu <- function(n, eps) {
+  1 / sample(c(3, 5.5), n, replace=T, prob=c(1 - eps, eps))
+}
+
+step <- function(mu_vec, n, m, eps, q, c_bfdr) { # TODO
+  
+  X <- array(replicate(m, rexp(n, mu_vec)), c(n,  m))
+  T_stat <- rowSums(X)
+  p_vals <- pval(T_stat, m)
+  
+  bonf <- bonferroni(p_vals, q)
+  bfdr <- bayes(T_stat, c_bfdr)
+  bh <- benjamini_hochberg(p_vals, q)
+  
+  array(c(bonferroni = bonf, BFDR = bfdr, benjamini_hochberg = bh),  c(n, 3))
+}
+
+simulation <- function(mu_vec, repn, n, m, eps, q=0.05) {
+  c_bfdr <- BFDR_threshold(eps, m)
+  array(replicate(repn, step(mu_vec, n, m, eps, q, c_bfdr)),  c(n,  3, repn)) # [i, test, replication]
+}
+
+eval_metric <- function(fun, result, mu_vec, c0=NULL,  cA=NULL) {
+  if (is.null(c0) ||  is.null(cA)) {
+    return(colMeans(array(sapply(1:(dim(result)[2]), 
+                                 function(test)
+                                   sapply(1:(dim(result)[3]),
+                                          function(iter) fun(mu_vec < 1 / 3, 
+                                                             result[,  test,  iter]))), 
+                          dim(result)[3:2])))
+  }
+  else {
+    return(colMeans(array(sapply(1:(dim(result)[2]),
+                                 function(test)
+                                   sapply(1:(dim(result)[3]),
+                                          function(iter) fun(mu_vec < 1 / 3, 
+                                                             result[,  test,  iter],  
+                                                             c0, cA))), 
+                          dim(result)[3:2])))
+  }
+  
+}
+
+summarise_results <- function(mu_vec, result, costs) { # TODO
+  # power
+  power_vals <- eval_metric(power, result, mu_vec)
+  # FDR
+  fdr_vals <- eval_metric(FDR, result, mu_vec)
+  # cost
+  cost_vals_1 <- eval_metric(cost, result, mu_vec, costs[[1]]["c0"],  costs[[1]]["cA"])
+  
+  cost_vals_2 <- eval_metric(cost, result, mu_vec, costs[[2]]["c0"],  costs[[2]]["cA"])
+  
+  cost_vals_3 <- eval_metric(cost, result, mu_vec, costs[[3]]["c0"],  costs[[3]]["cA"])
+  
+  return(t(data.frame(power_vals, fdr_vals, cost_vals_1, cost_vals_2, cost_vals_3)))
+}
+
+```
+
+```{r simulation_run, results='asis'}
+epsilons <- c(0.01,  0.05,  0.1,  0.2)
+ns <- c(200,  1000)
+ms <- c(20, 100)
+costs <- list(c(c0 = 1,  cA = 1),  
+               c(c0 = 2,  cA = 1), 
+               c(c0 = 1,  cA = 2))
+
+all_res_dir <- list(); i <- 1
+
+for (eps  in epsilons) {
+  for (m in ms) {
+    for (n in ns) {
+      mu_vec <- mu(n, eps)
+      for (q in c(0.1, 0.1 * sqrt(200 / m))) {
+        all_results <- simulation(mu_vec, 1000, n, m, eps, q)
+        results <- data.frame(summarise_results(mu_vec, all_results, costs))
+        colnames(results) <- c("Bonferroni", "control BFDR", "Benjamini-Hochberg")
+        all_res_dir[[i]] <- list(eps=eps, m=m, n=n, res = results, q=q)
+        i <- i+1
+        show(kable(results, caption = paste0("eps: ", eps, ", m: ",  m, ",  n: ",  n, ", q: ", round(q, 3)), digits = 3))
+      }
+    }
+  }
+}
+
+```
+
+
+# Task 3
+
+In this task, we are going to derive th eoptimal Bayesian classifer for each set of parameters $m$, $\epsilon$, $c0$, $cA$.
+
+Rejection region (classify as rejected $H_{0, i}$):
+
+$$\Gamma_A = \Bigg\{T: \quad \frac {f(T|H_A)} {f(T|H_0} \geq \frac {c_0 \mathbb{P}(H_0)} {c_A \mathbb{P}(H_A)} \Bigg\}$$
+
+$$\frac {f(T|H_A)} {f(T|H_0)} = \frac 
+{ \frac {(\frac {1} {5.5})^m} {\Gamma(m)} T^{m-1} e^{- \frac {1} {5.5} T}} 
+{\frac {(\frac {1} {3})^m} {\Gamma(m)} T^{m-1} e^{- \frac {1} {3} T}} = 
+\Big(\frac {3} {5.5}\Big)^m e^{(\frac 1 3 - \frac 1 {5.5}) T}$$ 
+
+Thus:
+
+$$\frac {f(T|H_A)} {f(T|H_0)} = \Big(\frac {3} {5.5}\Big)^m e^{T \frac{5} {33}}  \geq \frac {c_0 \mathbb{P}(H_0)} {c_A \mathbb{P}(H_A)} = \frac{c_0 (1 - \epsilon)} {c_A \epsilon}$$
+
+$$T \geq \frac {33} {5} ln\Bigg(\Big(\frac{5.5}{3}\Big)^m \cdot \frac{c_0 (1 - \epsilon)} {c_A \epsilon} \Bigg) = \tau$$
+
+```{r}
+tau <- function(m, eps, c0, cA) {
+  33 / 5 * log( (5.5 / 3) ^ m * (c0 * (1 - eps)) / (cA * eps))
+}
+```
+
+$$\mathbb{P}(rejected|H_0) = \mathbb{P}_0(T > \tau) = 1 - F_{Gamma(m, \frac 1 3)} (\tau)$$
+
+$$\mathbb{P}(rejected|H_1) = \mathbb{P}_1(T > \tau) = 1 - F_{Gamma(m, \frac 1 {5.5})} (\tau)$$
+
+$$BFDR = \mathbb{P} (H_0 | rejected) = \frac {\mathbb{P}(H_0 \cap rejected)} {\mathbb{P}(rejected)} = \frac {\mathbb{P}(rejected|H_0) \mathbb{P}(H_0)} {\mathbb{P}(rejected)} = \frac {\mathbb{P}(rejected|H_0) \mathbb{P}(H_0)} {\mathbb{P}(rejected|H_0) \mathbb{P}(H_0) + \mathbb{P}(rejected|H_1) \mathbb{P}(H_1)}$$
+
+
+$$BFDR = \frac {(1 - F_{Gamma(m, \frac 1 3)} (\tau)) \cdot(1- \epsilon)} {(1 - F_{Gamma(m, \frac 1 3)} (\tau)) \cdot(1- \epsilon) + (1 - F_{Gamma(m, \frac 1 {5.5})} (\tau)) \cdot \epsilon}$$
+
+```{r}
+BFDR_t <- function(m, eps, c0, cA, tau_val) {
+  # tau_val <- tau(m, eps, c0, cA)
+  (1 - pgamma(tau_val, m, 1/3)) * (1 - eps) / ((1 - pgamma(tau_val, m, 1/3) * (1 - eps)) + ((1 - pgamma(tau_val, m, 1 / 5.5)) * eps))
+}
+```
+
+
+$$power = \mathbb{P}(rejected|H_1) = 1 - F_{Gamma(m, \frac 1 {5.5})} (\tau)$$
+
+```{r}
+power_t <- function(m, eps, c0, cA, tau_val) {
+  1 - pgamma(tau_val,  m, 1 / 5.5)
+}
+```
+$$\mathbb{E}C = c_0 \cdot \mathbb{P}(rejected|H_0) \mathbb{P}(H_0) + c_A \cdot \mathbb{P}(accepted|H_1) \mathbb{P}(H_1)$$
+
+$$\mathbb E C = c_0 (1 - \epsilon) (1 - F_{Gamma(m, \frac 1 3)} (\tau)) + c_A \epsilon (1 - F_{Gamma(m, \frac 1 {5.5})} (\tau))$$
+
+```{r}
+cost_t <- function(m, eps, c0, cA, tau_val) {
+  c0 * (1 - eps) * (1 - pgamma(tau_val, m, 1/3)) + cA * eps * (1 - pgamma(tau_val, m, 1/5.5))
+}
+```
+
+
+```{r}
+vals <- data.frame()
+
+for (eps  in epsilons) {
+  for (m in ms) {
+    for (cs in costs) {
+      
+      tau_val <- tau(m, eps, cs["c0"], cs["cA"])
+      vals <- rbind(vals, 
+                    data.frame(eps = eps, m = m, c0 = cs["c0"], cA = cs["cA"], 
+                               tau = tau_val, 
+                               BFDR = BFDR_t(m, eps, cs["c0"], cs["cA"], tau_val),
+                               power = power_t(m, eps, cs["c0"], cs["cA"], tau_val), 
+                               cost = cost_t(m, eps, cs["c0"], cs["cA"], tau_val)))
+    }
+  }
+}
+
+kable(vals, row.names = F, digits = 3)
+```
+
+
+TODO: add above results to task 2 as column: theoretical 
+
+
+# Task 4
+
+<!-- Standard likelihood function:  -->
+
+<!-- $$L(\mu, eps,  T) = \frac {(\frac {1} {\mu})^m} {\Gamma(m)} T^{m-1} e^{- \frac {1} {\mu} T} \cdot \epsilon + \frac {(\frac {1} {3})^m} {\Gamma(m)} T^{m-1} e^{- \frac {1} {3} T} \cdot (1 - \epsilon) $$ -->
+
+Likelihood for EM algorithm:
+
+$Z_i$ - latent indicators form binomial distribution ($\mathbb P (Z_i = 1) = \epsilon$)
+
+$$L(T, Z | \mu, \epsilon) = L(T|Z,\mu, \epsilon) \cdot L(Z|\epsilon) = \prod_{i=1}^{n} f_{Gamma(m, \frac 1 \mu)}(T)^{Z_i} \cdot \epsilon^{Z_i} \cdot f_{Gamma(m, \frac 1 3)} (T)^{1 -Z_i} \cdot (1-\epsilon)^{1 - Z_i}  $$
+
+$$L(T|Z,\mu, \epsilon) = \prod_{i=1}^{n} f_{Gamma(m, \frac 1 \mu)} (T)^{Z_i} \cdot f_{Gamma(m, \frac 1 3)} (T)^{1 - Z_i} = \prod_{i=1}^{n} \Bigg[\frac {(\frac {1} {\mu})^m} {\Gamma(m)} T_i^{m-1} e^{- \frac {1} {\mu} T_i}\Bigg]^{Z_i} \Bigg[ \frac {(\frac {1} {3})^m} {\Gamma(m)} T_i^{m-1} e^{- \frac {1} {3} T_i}\Bigg]^{1 - Z_i} $$
+
+$$l(T|Z,\mu, \epsilon) =  \sum_{i=1}^{n} Z_i \cdot ln(f_{Gamma(m, \frac 1 \mu)} (T)) + (1 - Z_i) \cdot ln(f_{Gamma(m, \frac 1 3)} (T))$$
+
+<!-- $$l(T|Z,\mu, \epsilon) = \sum_{i=1}^{n} \Big(-mln(\mu) - ln(\Gamma(m)) + (m-1) ln(T_i) + (- \frac {1} {\mu} T_i)\Big)(1 - Z_i) + \Big(-mln(3) - ln(\Gamma(m)) + (m-1) ln(T_i)+ (- \frac {1} {3} T_i)\Big)Z_i $$ -->
+<!-- $$l(T|Z,\mu, \epsilon) = \sum_{i=1}^{n} \Bigg[- ln(\Gamma(m)) + (m-1) ln(T_i) + (1 - Z_i)\Big(-mln(\mu) - \frac {1} {\mu} T_i \Big) + Z_i\Big(-mln(3) - \frac {1} {3} T_i \Big) \Bigg]$$ -->
+<!-- $$l(T, Z | \mu, \epsilon) = \sum_{i=1}^{n} \Bigg[- ln(\Gamma(m)) + (m-1) ln(T_i) + (1 - Z_i)\Big(-mln(\mu) - \frac {1} {\mu} T_i \Big) + Z_i\Big(-mln(3) - \frac {1} {3} T_i \Big) + ln\Big(\epsilon^{Z_i} (1 - \epsilon)^{1 - Z_i}\Big) \Bigg]$$ -->
+<!-- $$l(T, Z | \mu, \epsilon) = \sum_{i=1}^{n} \Bigg[- ln(\Gamma(m)) + (m-1) ln(T_i) + (1 - Z_i)\Big(-mln(\mu) - \frac {1} {\mu} T_i \Big) + Z_i\Big(-mln(3) - \frac {1} {3} T_i \Big) + Z_iln(\epsilon) +  (1 - Z_i)ln(1 - \epsilon) \Bigg]$$ -->
+$$l(T, Z | \mu, \epsilon) = \sum_{i=1}^{n} Z_i \cdot (ln(f_{Gamma(m, \frac 1 \mu)} (T_i)) + ln(\epsilon)) + (1 - Z_i) \cdot (ln(f_{Gamma(m, \frac 1 3)} (T_i)) + ln(1 - \epsilon))$$
+
+Expectation step:
+
+Replace $\epsilon$ with estimator
+
+$$\pi_i^k = \mathbb E(Z_i | T, \mu_{k}) = \mathbb P (Z_i = 1 |T, \mu_k)$$
+
+$$\pi_i^k = \frac {f_{Gamma(m, \frac {1} {\mu_k})} (T_i) \cdot \epsilon_k}  {f_{Gamma(m, \frac {1} {\mu_k})} (T_i) \cdot \epsilon_k + f_{Gamma(m, \frac {1} {3})} (T_i) \cdot (1 - \epsilon_k)}$$
+$$Q(\mu, \epsilon | \mu_k, \epsilon_k) = \mathbb E _{Z|T, \mu_k, \epsilon_k} log(L(T, Z | \mu, \epsilon))$$
+$$Q(\mu, \epsilon | \mu_k, \epsilon_k) =  \sum_{i=1}^{n} \pi_i^k \cdot (ln(f_{Gamma(m, \frac 1 \mu)} (T_i)) + ln(\epsilon)) + (1 - \pi_i^k) \cdot (ln(f_{Gamma(m, \frac 1 3)} (T_i)) + ln(1 - \epsilon))$$
+<!-- $$Q(\mu, \epsilon | \mu_k, \epsilon_k)  = \sum_{i=1}^{n} \Bigg[- ln(\Gamma(m)) + (m-1) ln(T_i) + (1 - \pi_i^k)\Big(-mln(\mu) - \frac {1} {\mu} T_i \Big) + \pi_i^k\Big(-mln(3) - \frac {1} {3} T_i \Big) + \pi_i^kln(\epsilon) +  (1 - \pi_i^k)ln(1 - \epsilon) \Bigg]$$ -->
+
+Maximization step
+
+$$Q_{k+1} = argmax_{\mu, \epsilon} Q(\mu, \epsilon | \mu_k, \epsilon_k)$$
+
+```{r}
+pi_k <- function(T_val, eps_k, mu_k) {
+  dgamma(T_val, m, 1 / mu_k) * eps_k / (dgamma(T_val, m, 1 / mu_k) * eps_k + dgamma(T_val, m, 1 / 3) * (1 - eps_k))
+}
+
+Q <- function(Q_init, pik, T_val, m) {
+  mu_val <- Q_init["mu"]; eps <- Q_init["eps"]
+  sum((pik) * (log(dgamma(T_val, m, 1/mu_val)) + log(eps)) + (1 - pik) * (log(dgamma(T_val, m, 1/3)) + log(1 - eps)))
+}
+
+Qk <- function(T_val, eps_k, mu_k, m) {
+  pik <- pi_k(T_val, eps_k, mu_k)
+  optim(c(mu = 5.5, eps = .5), Q, pik = pik, m=m, T_val = T_val, control = list(fnscale = -1))$par
+}
+```
+
+```{r}
+EM <- function(T_val, m, Q_init=NULL, i=0) {
+  if (is.null(Q_init)) {
+    Q_val <- Qk(T_val, .5, mean(T_val), m)
+    EM(T_val, m, Q_val, i+1)
+  } else {
+    Q_val <- Qk(T_val, Q_init["eps"], Q_init["mu"], m)
+    if (all(Q_val - Q_init < 0.05) | (i > 10e4)) {
+      c(Q_val["mu"], Q_val["eps"])
+    } else {
+      EM(T_val, m, Q_val, i+1)
+    }
+  }
+}
+
+step4 <- function(eps, m, n)  {
+  mu_vec <- mu(n, eps)
+  T_val <- rowSums(array(replicate(m, rexp(n, mu_vec)), c(n,  m)))
+  EM(T_val, m)
+}
+```
+
+```{r}
+lst <- list()
+i <- 1
+for (eps  in epsilons) {
+  for (m in ms) {
+    for (n in ns) {
+      lst[[i]] <- list(eps = eps, m = m, n = n, res = replicate(100, step4(eps, m, n)))
+      i <- i+1
+      
+    }
+  }
+}
+
+for (element in lst) {
+  cat("\n\n##", "eps: ", element$eps, ", m: ",  element$m, ",  n: ",  element$n)
+  bias <- rowMeans(element$res - t(array(c(rep(5.5, 100), rep(element$eps, 100)), c(100, 2))))
+  mse <- c(mean((element$res["mu", ] - 5.5)^2), mean((element$res["eps", ] - element$eps)^2))
+  # vars <- c(mean((element$res["mu", ] - 5.5)^2), mean((element$res["eps", ] - element$eps)^2))
+  cov_mu_eps <- rep(mean((element$res["mu", ] - 5.5) * (element$res["eps", ] - element$eps)), 2)
+  mse_mu_eps <- rep(mean(sqrt((element$res["mu", ] - 5.5)^2 + (element$res["eps", ] - element$eps)^2)), 2)
+  kable(t(data.frame(bias, mse, cov_mu_eps, mse_mu_eps)), 
+        caption=paste0("epsilon: ", element$eps, ", m: ", element$m, ", n: ", element$n), 
+        digits = 4) %>% show()
+}
+```
+
+MSE is an estimator of the variance (for one dimensional parameter).
+
+# Task 5
+
+```{r, results='asis'}
+mod_benjamini_hochberg <- function(pvals, alpha, eps) {
+  n <- length(pvals)
+  ord <- order(pvals)
+  ord2 <- order(ord)
+  res <-( pvals[ord] <= ((alpha * seq(n) / n / (1 - eps))))
+  sapply(1:n, function(i) any(res[i:n]))[ord2]
+}
+
+step5 <- function(mu_vec, n, m, eps, q, c_bfdr, tau_val_1, tau_val_2, tau_val_3) {
+  
+  X <- array(replicate(m, rexp(n, mu_vec)), c(n,  m))
+  T_stat <- rowSums(X)
+  p_vals <- pval(T_stat, m)
+  
+  bayes1 <-bayes(T_stat, tau_val_1)
+  bayes2 <-bayes(T_stat, tau_val_2)
+  bayes3 <-bayes(T_stat, tau_val_3)
+  bfdr <- bayes(T_stat, c_bfdr)
+  bh <- mod_benjamini_hochberg(p_vals, q, eps)
+  
+  array(c(bayes1 = bayes1, bayes2 = bayes2, bayes3 = bayes3, BFDR = bfdr, mod_benjamini_hochberg = bh),  c(n, 5))
+}
+
+simulation5 <- function(mu_vec, repn, n, m, eps, q=0.05) {
+  c_bfdr <- BFDR_threshold(eps, m)
+  tau_val_1 <- tau(m, eps, 1, 1)
+  tau_val_2 <- tau(m, eps, 2, 1)
+  tau_val_3 <- tau(m, eps, 1, 2)
+  array(replicate(repn, step5(mu_vec, n, m, eps, q, c_bfdr, tau_val_1, tau_val_2, tau_val_3)),  c(n,  5, repn)) # [i, test, replication]
+}
+
+all_res_plugin <- list()
+i <- 1
+
+for (element in lst) {
+  cat("\n\n##", "eps: ", element$eps, ", m: ",  element$m, ",  n: ",  element$n)
+  # bias <- rowMeans(element$res - t(array(c(rep(5.5, 100), rep(element$eps, 100)), c(100, 2))))
+  # mse <- c(mean((element$res["mu", ] - 5.5)^2), mean((element$res["eps", ] - element$eps)^2))
+  # # vars <- c(mean((element$res["mu", ] - 5.5)^2), mean((element$res["eps", ] - element$eps)^2))
+  # cov_mu_eps <- rep(mean((element$res["mu", ] - 5.5) * (element$res["eps", ] - element$eps)), 2)
+  # mse_mu_eps <- rep(mean(sqrt((element$res["mu", ] - 5.5)^2 + (element$res["eps", ] - element$eps)^2)), 2)
+  # kable(t(data.frame(bias, mse, cov_mu_eps, mse_mu_eps)), 
+  #       caption=paste0("epsilon: ", element$eps, ", m: ", element$m, ", n: ", element$n), 
+  #       digits = 4) %>% show()
+  
+  
+  m <- element$m
+  n <- element$n
+  mu_A <- mean(element$res["mu", ])
+  eps <-  mean(element$res["eps", ])
+  mu_vec <- 1 / sample(c(3, mu_A), n, replace=T, prob=c(1 - eps, eps))
+  
+  for (q in c(0.1, 0.1 * sqrt(200 / m))) {
+    all_results <- simulation5(mu_vec, 1000, n, m, eps, q)
+    results <- data.frame(summarise_results(mu_vec, all_results, costs))
+    colnames(results) <- c("Bayes c0=cA=1", "Bayes c0=2, cA=1", "Bayes c0=1, cA=2", "plug-in control BFDR", "modified Benjamini-Hochberg")
+    all_res_plugin[[i]] <- list(eps=eps, m=m, n=n, res=results, q=q) 
+    i <- i+1
+    show(kable(results, caption = paste0("eps: ", eps, ", m: ",  m, ",  n: ",  n, ", q: ", round(q, 3)), digits = 3))
+  }
+}
+```
+
+
+# Task 6
+
+```{r, results='asis'}
+direct_power <- data.frame()
+for (i in seq(length(all_res_dir))) {
+  tmp <- all_res_dir[[i]][[4]]
+  tmp$metric <- row.names(tmp)
+  direct_power <- rbind(direct_power, cbind(data.frame(all_res_dir[[i]][1:3]), tmp))
+}
+
+plugin_power <- data.frame()
+for (i in seq(length(all_res_dir))) {
+  all_res_plugin[[i]]$eps <- lst[[ceiling(i/2)]]$eps
+  tmp <- all_res_plugin[[i]][[4]]
+  tmp$metric <- row.names(tmp)
+  plugin_power <- rbind(plugin_power, cbind(data.frame(all_res_plugin[[i]][c(1:3, 5)]), tmp))
+}
+direct_power$q <- plugin_power$q
+data <- plyr::join(direct_power, plugin_power, by=c("m", "n", "eps", "q", "eps", "metric"))
+data <- data[with(data, order(m, n, q, metric, eps)), ]
+
+for (i in seq(40)) {
+  tmp <- data[((i-1)*4 + 1): (i*4), ]
+  m <- tmp[1, "m"]
+  n <- tmp[1, "n"]
+  q <- tmp[1, "q"]
+  metric <- tmp[1, "metric"]
+  tmp <- melt(tmp, "eps", c("Bonferroni", "control BFDR", "Benjamini-Hochberg", 
+                            "Bayes c0=cA=1", "Bayes c0=2, cA=1", "Bayes c0=1, cA=2",
+                            "control BFDR", "modified Benjamini-Hochberg"))
+  show(ggplot(tmp, aes(x=eps, y=value, color=variable)) + 
+    geom_line() + 
+    labs(title = str_c(metric, ". m= ", m, "n: ", n, ", q: ", round(q, 4))) 
+  )
+}
+```
+
+

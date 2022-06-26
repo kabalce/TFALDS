@@ -1,0 +1,28 @@
+\contentsline {section}{Introduction}{1}{section*.2}%
+\contentsline {section}{Multiple Testing}{2}{section*.3}%
+\contentsline {subsection}{Problem Definition}{2}{section*.4}%
+\contentsline {subsection}{Test Quality Measures}{2}{section*.5}%
+\contentsline {subsubsection}{FWER}{2}{section*.6}%
+\contentsline {subsubsection}{FDR}{3}{section*.7}%
+\contentsline {subsubsection}{Power}{3}{section*.8}%
+\contentsline {subsection}{Tests}{3}{section*.9}%
+\contentsline {subsubsection}{Bonferroni's procedure}{3}{section*.10}%
+\contentsline {subsubsection}{Sidak's procedure}{3}{section*.11}%
+\contentsline {subsubsection}{Holm's procedure}{4}{section*.12}%
+\contentsline {subsubsection}{Hochberg's procedure}{4}{section*.13}%
+\contentsline {subsubsection}{Benjamini-Hochberg's procedure}{4}{section*.14}%
+\contentsline {subsection}{Simulations}{4}{section*.15}%
+\contentsline {subsubsection}{Task 1}{4}{section*.16}%
+\contentsline {subsubsection}{Task 2}{5}{section*.17}%
+\contentsline {section}{Empirical CDF Properties}{6}{section*.18}%
+\contentsline {subsection}{Theoretical Definitions}{6}{section*.19}%
+\contentsline {subsubsection}{Empirical Process}{6}{section*.20}%
+\contentsline {subsubsection}{Brownian Bridge}{6}{section*.21}%
+\contentsline {subsubsection}{T Statistics}{6}{section*.22}%
+\contentsline {subsubsection}{K-S Statistics}{7}{section*.23}%
+\contentsline {subsection}{Simulation}{7}{section*.24}%
+\contentsline {subsubsection}{Task 3}{7}{section*.25}%
+\contentsline {section}{Closure Procedure}{8}{section*.26}%
+\contentsline {subsection}{Closure Tests}{8}{section*.27}%
+\contentsline {subsection}{Simulation}{8}{section*.28}%
+\contentsline {subsubsection}{Task 4}{8}{section*.29}%
